@@ -695,3 +695,5 @@ CONTRIBUTION_GUIDE.md
 .qodo
 .windsurfrules
 .windsurf/rules
+.env
+.env.*
