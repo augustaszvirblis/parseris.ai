@@ -123,3 +123,21 @@
     font-weight: 600;
     line-height: 24px;
 }
+
+.open-source-subtitle {
+  margin: 16px 0;
+  color: #666;
+  font-size: 14px;
+  text-align: center;
+}
+
+.github-link {
+  color: #1890ff;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.github-link:hover {
+  color: #40a9ff;
+  text-decoration: underline;
+}

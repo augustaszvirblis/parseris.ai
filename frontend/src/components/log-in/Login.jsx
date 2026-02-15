@@ -30,6 +30,17 @@ function Login() {
             <Col xs={24} md={12} className="login-left-section">
               <div className="button-wraper">
                 <UnstractBlackLogo className="logo" />
+                <p className="open-source-subtitle">
+                  Parseris.ai is open-source on{" "}
+                  
+                    href="https://github.com/augustaszvirblis/parseris.ai"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="github-link"
+                  >
+                    GitHub
+                  </a>
+                </p>
                 <div>
                   <Button
                     className="login-button button-margin"
