@@ -17,7 +17,7 @@ services:
       - db
       - redis
       - rabbitmq
-      - reverse-proxy
+#      - reverse-proxy
       - minio
       - minio-bootstrap
       - platform-service
@@ -30,10 +30,10 @@ services:
     environment:
       - ENVIRONMENT=development
       - APPLICATION_NAME=unstract-backend
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.backend.rule=Host(`frontend.unstract.localhost`) && (PathPrefix(`/api/v1`) || PathPrefix(`/deployment`))
-      - traefik.http.services.backend.loadbalancer.server.port=8000
+#    labels:
+ #     - traefik.enable=true
+  #    - traefik.http.routers.backend.rule=Host(`frontend.unstract.localhost`) && (PathPrefix(`/api/v1`) || PathPrefix(`/deployment`))
+   #   - traefik.http.services.backend.loadbalancer.server.port=8000
     extra_hosts:
       # "host-gateway" is a special string that translates to host docker0 i/f IP.
       - "host.docker.internal:host-gateway"
@@ -169,13 +169,17 @@ services:
       - "3000:80"
     depends_on:
       - backend
-      - reverse-proxy
+ #     - reverse-proxy
     environment:
-      - ENVIRONMENT=development
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.frontend.rule=Host(`frontend.unstract.localhost`) && !PathPrefix(`/api/v1`) && !PathPrefix(`/deployment`)
-      - traefik.http.services.frontend.loadbalancer.server.port=80
+      - ENVIRONMENT=production
+      - REACT_APP_API_URL=https://parseris.ai/api/v1
+      - REACT_APP_BACKEND_URL=https://parseris.ai
+      - PUBLIC_URL=https://parseris.ai
+      - DOMAIN=parseris.ai
+#    labels:
+ #     - traefik.enable=true
+  #    - traefik.http.routers.frontend.rule=Host(`frontend.unstract.localhost`) && !PathPrefix(`/api/v1`) && !PathPrefix(`/deployment`)
+   #   - traefik.http.services.frontend.loadbalancer.server.port=80
 
   platform-service:
     image: unstract/platform-service:${VERSION}
