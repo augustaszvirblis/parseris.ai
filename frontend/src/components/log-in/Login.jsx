@@ -32,7 +32,7 @@ function Login() {
                 <UnstractBlackLogo className="logo" />
                 <p className="open-source-subtitle">
                   Parseris.ai is open-source on{" "}
-                  
+                  <a
                     href="https://github.com/augustaszvirblis/parseris.ai"
                     target="_blank"
                     rel="noopener noreferrer"
