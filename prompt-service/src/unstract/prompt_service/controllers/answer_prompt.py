@@ -386,6 +386,14 @@ def prompt_processor() -> Any:
 
             # Get all valid retrieval strategies
             valid_strategies = {strategy.value for strategy in RetrievalStrategy}
+            # Default to simple when missing or invalid so we never skip retrieval (answer would stay "NA" -> null output)
+            if retrieval_strategy not in valid_strategies:
+                app.logger.info(
+                    "Retrieval strategy %s not in %s; defaulting to simple",
+                    retrieval_strategy,
+                    valid_strategies,
+                )
+                retrieval_strategy = RetrievalStrategy.SIMPLE.value
 
             if retrieval_strategy in valid_strategies:
                 app.logger.info(f"[{tool_id}] Performing retrieval for : {file_path}")

@@ -14,6 +14,12 @@ adapters: dict[str, dict[str, Any]] = {}
 
 register_adapters(adapters, AdapterTypes.LLM.name)
 
+# Aliases for adapter_ids used by create_default_adapters / Parseris defaults
+# so profiles using "openai|openai" resolve to the OpenAI adapter
+_openai_canonical_id = OpenAILLMAdapter.get_id()
+if _openai_canonical_id in adapters:
+    adapters["openai|openai"] = adapters[_openai_canonical_id]
+
 __all__ = [
     "adapters",
     "AnthropicLLMAdapter",

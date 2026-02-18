@@ -162,11 +162,15 @@ class BaseEmbeddingParameters(BaseModel):
         pass
 
 
+# Default base URL for OpenAI API (used when adapter metadata omits api_base)
+OPENAI_DEFAULT_API_BASE = "https://api.openai.com/v1"
+
+
 class OpenAILLMParameters(BaseChatCompletionParameters):
     """See https://docs.litellm.ai/docs/providers/openai/."""
 
     api_key: str
-    api_base: str
+    api_base: str = OPENAI_DEFAULT_API_BASE
     api_version: str | None = None
     reasoning_effort: str | None = None
 

@@ -100,6 +100,14 @@
   white-space: pre-wrap;
 }
 
+.prompt-output-json-table-view .ant-segmented {
+  margin-bottom: 8px;
+}
+
+.prompt-output-json-table-view .ant-btn {
+  margin-top: 12px;
+}
+
 .prompt-card-select-type {
   width: 100px;
 }

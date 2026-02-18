@@ -159,15 +159,17 @@ class AdapterInstance(DefaultOrganizationMixin, BaseModel):
 
     @property
     def metadata(self) -> Any:
+        if self.adapter_metadata_b is None:
+            return self.adapter_metadata if self.adapter_metadata else {}
         try:
             encryption_secret: str = settings.ENCRYPTION_KEY
             f: Fernet = Fernet(encryption_secret.encode("utf-8"))
-
-            adapter_metadata = json.loads(
-                f.decrypt(bytes(self.adapter_metadata_b).decode("utf-8"))
-            )
-        except InvalidToken:
-            raise InvalidEncryptionKey(entity=InvalidEncryptionKey.Entity.ADAPTER)
+            decrypted_bytes = f.decrypt(bytes(self.adapter_metadata_b))
+            adapter_metadata = json.loads(decrypted_bytes.decode("utf-8"))
+        except (InvalidToken, TypeError, ValueError) as e:
+            if isinstance(e, InvalidToken):
+                raise InvalidEncryptionKey(entity=InvalidEncryptionKey.Entity.ADAPTER)
+            return self.adapter_metadata if self.adapter_metadata else {}
         return adapter_metadata
 
     def get_context_window_size(self) -> int:

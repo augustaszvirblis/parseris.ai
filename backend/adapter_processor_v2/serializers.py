@@ -177,8 +177,10 @@ class AdapterListSerializer(BaseAdapterSerializer):
 
         if instance.is_friction_less:
             rep["created_by_email"] = "Unstract"
-        else:
+        elif instance.created_by is not None:
             rep["created_by_email"] = instance.created_by.email
+        else:
+            rep["created_by_email"] = ""
 
         return rep
 

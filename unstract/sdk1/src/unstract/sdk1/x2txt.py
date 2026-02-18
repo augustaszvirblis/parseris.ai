@@ -82,6 +82,11 @@ class X2Text:
                 self._x2text_instance = x2text_adapter(x2text_metadata)
 
                 return self._x2text_instance
+            else:
+                raise X2TextError(
+                    f"Unknown or unsupported x2text adapter_id: {x2text_adapter_id}. "
+                    "Use a valid x2text adapter (e.g. from Prompt Studio default profile)."
+                )
 
         except Exception as e:
             self._tool.stream_log(
@@ -97,6 +102,11 @@ class X2Text:
         fs: FileStorage | None = None,
         **kwargs: dict[Any, Any],
     ) -> TextExtractionResult:
+        if self._x2text_instance is None:
+            raise X2TextError(
+                "X2Text adapter not initialized. Check that the default profile's "
+                "x2text adapter is valid and available."
+            )
         if fs is None:
             fs = FileStorage(provider=FileStorageProvider.LOCAL)
         mime_type = fs.mime_type(input_file_path)

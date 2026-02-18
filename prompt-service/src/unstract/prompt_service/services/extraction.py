@@ -8,6 +8,7 @@ from unstract.prompt_service.helpers.prompt_ide_base_tool import PromptServiceBa
 from unstract.prompt_service.utils.file_utils import FileUtils
 from unstract.sdk1.adapters.exceptions import AdapterError
 from unstract.sdk1.adapters.x2text.constants import X2TextConstants
+from unstract.sdk1.exceptions import X2TextError
 from unstract.sdk1.adapters.x2text.llm_whisperer.src import LLMWhisperer
 from unstract.sdk1.adapters.x2text.llm_whisperer_v2.src import LLMWhispererV2
 from unstract.sdk1.utils.common import log_elapsed
@@ -65,6 +66,9 @@ class ExtractionService:
                 )
             extracted_text = process_response.extracted_text
             return extracted_text
+        except X2TextError as e:
+            msg = str(e) if str(e) else "Text extractor error."
+            raise ExtractionError(msg, code=400) from e
         except AdapterError as e:
             msg = f"Error from text extractor '{x2text.x2text_instance.get_name()}'. "
             msg += str(e)

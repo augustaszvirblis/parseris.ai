@@ -389,11 +389,13 @@ def adapter_instance() -> Any:
             organization_uid=organization_uid,
         )
 
-        f: Fernet = Fernet(Env.ENCRYPTION_KEY.encode("utf-8"))
-
-        data_dict["adapter_metadata"] = json.loads(
-            f.decrypt(bytes(data_dict.pop("adapter_metadata_b")).decode("utf-8"))
-        )
+        adapter_metadata_b = data_dict.pop("adapter_metadata_b", None)
+        if adapter_metadata_b is None:
+            data_dict["adapter_metadata"] = {}
+        else:
+            f: Fernet = Fernet(Env.ENCRYPTION_KEY.encode("utf-8"))
+            decrypted_bytes = f.decrypt(bytes(adapter_metadata_b))
+            data_dict["adapter_metadata"] = json.loads(decrypted_bytes.decode("utf-8"))
 
         return jsonify(data_dict)
     except InvalidToken:

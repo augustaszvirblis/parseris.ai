@@ -216,7 +216,7 @@ class LLM:
                 **completion_kwargs,
             )
 
-            response_text = response["choices"][0]["message"]["content"]
+            response_text = response["choices"][0]["message"].get("content") or ""
 
             self._record_usage(
                 self.kwargs["model"], messages, response.get("usage"), "complete"
@@ -361,7 +361,7 @@ class LLM:
                 messages=messages,
                 **completion_kwargs,
             )
-            response_text = response["choices"][0]["message"]["content"]
+            response_text = response["choices"][0]["message"].get("content") or ""
 
             self._record_usage(
                 self.kwargs["model"], messages, response.get("usage"), "acomplete"

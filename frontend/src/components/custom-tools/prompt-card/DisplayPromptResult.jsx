@@ -1,7 +1,9 @@
-import { Space, Spin, Typography } from "antd";
+import { Button, Segmented, Space, Spin, Table, Typography } from "antd";
 import PropTypes from "prop-types";
-import { InfoCircleFilled } from "@ant-design/icons";
+import { DownloadOutlined, InfoCircleFilled } from "@ant-design/icons";
+import { saveAs } from "file-saver";
 import { useEffect, useState } from "react";
+import * as XLSX from "xlsx";
 
 import {
   displayPromptResult,
@@ -12,6 +14,54 @@ import {
 import "./PromptCard.css";
 import { useCustomToolStore } from "../../../store/custom-tool-store";
 import { SpinnerLoader } from "../../widgets/spinner-loader/SpinnerLoader";
+
+/**
+ * Returns true when data is a non-empty array of plain objects (suitable for table view).
+ * @param {unknown} data - Value to check
+ * @return {boolean}
+ */
+function isTableLikeData(data) {
+  return (
+    Array.isArray(data) &&
+    data.length > 0 &&
+    data.every(
+      (item) =>
+        item !== null &&
+        item !== undefined &&
+        typeof item === "object" &&
+        !Array.isArray(item)
+    )
+  );
+}
+
+/**
+ * Returns the array to use for table view and Excel export, or null.
+ * Handles: raw array, or object with single key whose value is table-like array,
+ * or JSON string that parses to either.
+ * @param {unknown} parsedOutput - Value from displayPromptResult (may be string when highlight off)
+ * @return {Array<Record<string, unknown>> | null}
+ */
+function getTableData(parsedOutput) {
+  let data = parsedOutput;
+  if (typeof data === "string") {
+    try {
+      data = JSON.parse(data);
+    } catch {
+      return null;
+    }
+  }
+  if (isTableLikeData(data)) return data;
+  if (
+    typeof data === "object" &&
+    data !== null &&
+    !Array.isArray(data) &&
+    Object.keys(data).length === 1
+  ) {
+    const val = Object.values(data)[0];
+    if (isTableLikeData(val)) return val;
+  }
+  return null;
+}
 
 function DisplayPromptResult({
   output,
@@ -29,6 +79,7 @@ function DisplayPromptResult({
   const [isLoading, setIsLoading] = useState(false);
   const [parsedOutput, setParsedOutput] = useState(null);
   const [selectedKey, setSelectedKey] = useState(null);
+  const [jsonTableViewMode, setJsonTableViewMode] = useState("json");
   const {
     singlePassExtractMode,
     isSinglePassExtractLoading,
@@ -299,9 +350,110 @@ function DisplayPromptResult({
     return String(data);
   };
 
+  // Normalize: when highlight is off, parsedOutput can be a JSON string; parse for table/JSON view
+  const displayData =
+    typeof parsedOutput === "string"
+      ? (() => {
+          try {
+            return JSON.parse(parsedOutput);
+          } catch {
+            return parsedOutput;
+          }
+        })()
+      : parsedOutput;
+
+  const tableData = getTableData(parsedOutput);
+
+  const handleExportExcel = () => {
+    if (!tableData) return;
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(tableData);
+    XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([wbout], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    saveAs(blob, "prompt-export.xlsx");
+  };
+
+  // Ensure no object/array is ever passed to React as child (fixes React error #31)
+  const toCellText = (value) => {
+    if (value === null || value === undefined) return "";
+    if (typeof value === "object") return JSON.stringify(value);
+    return String(value);
+  };
+
+  const tableColumns = tableData
+    ? Object.keys(tableData[0]).map((colKey) => ({
+        title: String(colKey),
+        dataIndex: colKey,
+        key: String(colKey),
+        render: (val) => toCellText(val),
+      }))
+    : [];
+
+  // Sanitize rows so every cell is string; table never receives objects
+  const tableDataSource = tableData
+    ? tableData.map((row, i) => {
+        const sanitized = {};
+        for (const k of Object.keys(row)) {
+          sanitized[k] = toCellText(row[k]);
+        }
+        sanitized.key = i;
+        return sanitized;
+      })
+    : [];
+
   return (
     <Typography.Paragraph className="prompt-card-display-output font-size-12">
-      {parsedOutput && typeof parsedOutput === "object" ? (
+      {tableData ? (
+        <div className="prompt-output-json-table-view">
+          <Space direction="vertical" size="small" style={{ width: "100%" }}>
+            <Segmented
+              options={[
+                { label: "JSON", value: "json" },
+                { label: "Table", value: "table" },
+              ]}
+              value={jsonTableViewMode}
+              onChange={setJsonTableViewMode}
+            />
+            {jsonTableViewMode === "table" ? (
+              <>
+                <Table
+                  dataSource={tableDataSource}
+                  columns={tableColumns}
+                  pagination={{
+                    pageSize: 10,
+                    size: "small",
+                    showSizeChanger: true,
+                    showTotal: (total) => `Total ${total} rows`,
+                  }}
+                  size="small"
+                  scroll={{ x: "max-content" }}
+                />
+                <Button
+                  type="primary"
+                  icon={<DownloadOutlined />}
+                  onClick={handleExportExcel}
+                  size="small"
+                >
+                  Export to Excel
+                </Button>
+              </>
+            ) : (
+              renderJson(
+                displayData,
+                highlightData,
+                confidenceData,
+                wordConfidenceData,
+                0,
+                "",
+                isTable
+              )
+            )}
+          </Space>
+        </div>
+      ) : parsedOutput && typeof parsedOutput === "object" ? (
         renderJson(
           parsedOutput,
           highlightData,
