@@ -30,4 +30,4 @@ As required by the license, the complete source code is available in this reposi
 
 ## Contact
 
-For questions or issues, please open an issue on GitHub or contact zvirblis.augustas28@gmail.com
+...
