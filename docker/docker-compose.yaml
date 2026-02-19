@@ -24,12 +24,15 @@ services:
       - prompt-service
       - x2text-service
     volumes:
+      # Must match PROMPT_STUDIO_FILE_PATH so backend can read/write prompt studio files
       - prompt_studio_data:/app/prompt-studio-data
       - ./workflow_data:/data
       - ${TOOL_REGISTRY_CONFIG_SRC_PATH}:/data/tool_registry_config
     environment:
       - ENVIRONMENT=development
       - APPLICATION_NAME=unstract-backend
+      # Must match the volume mount above (used for public share file lookup fallback)
+      - PROMPT_STUDIO_FILE_PATH=/app/prompt-studio-data
 #    labels:
  #     - traefik.enable=true
   #    - traefik.http.routers.backend.rule=Host(`frontend.unstract.localhost`) && (PathPrefix(`/api/v1`) || PathPrefix(`/deployment`))

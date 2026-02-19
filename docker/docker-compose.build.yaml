@@ -5,6 +5,8 @@ services:
       dockerfile: docker/dockerfiles/frontend.Dockerfile
       context: ..
       target: production
+      args:
+        - REACT_APP_PUBLIC_PROMPT_STUDIO_SHARE_ID=${REACT_APP_PUBLIC_PROMPT_STUDIO_SHARE_ID:-}
   backend:
     image: unstract/backend:${VERSION}
     build:

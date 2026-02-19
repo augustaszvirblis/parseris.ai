@@ -34,8 +34,10 @@ CMD ["/bin/sh", "-c", "/app/generate-runtime-config.sh && npm start"]
 # Builder stage for production build
 FROM base AS builder
 ARG REACT_APP_ENABLE_POSTHOG=true
+ARG REACT_APP_PUBLIC_PROMPT_STUDIO_SHARE_ID=""
 ENV REACT_APP_BACKEND_URL=""
 ENV REACT_APP_ENABLE_POSTHOG=${REACT_APP_ENABLE_POSTHOG}
+ENV REACT_APP_PUBLIC_PROMPT_STUDIO_SHARE_ID=${REACT_APP_PUBLIC_PROMPT_STUDIO_SHARE_ID}
 
 # Copy package files and install dependencies
 COPY ${BUILD_CONTEXT_PATH}/package.json ${BUILD_CONTEXT_PATH}/package-lock.json ./
