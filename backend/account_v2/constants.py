@@ -42,6 +42,8 @@ class ErrorMessage:
     ORGANIZATION_EXIST = "Organization already exists"
     DUPLICATE_API = "It appears that a duplicate call may have been made."
     USER_LOGIN_ERROR = "Invalid username or password. Please try again."
+    USERNAME_TAKEN = "This username is already taken. Please choose another."
+    SIGNUP_SUCCESS = "Account created successfully. You can now log in."
 
 
 class DefaultOrg:
@@ -56,6 +58,8 @@ class DefaultOrg:
 class UserLoginTemplate:
     TEMPLATE = "login.html"
     ERROR_PLACE_HOLDER = "error_message"
+    SIGNUP_ERROR_PLACE_HOLDER = "signup_error_message"
+    SIGNUP_SUCCESS_PLACE_HOLDER = "signup_success_message"
 
 
 class PluginConfig:

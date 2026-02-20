@@ -60,7 +60,7 @@ def login(request: Request) -> Response:
     return auth_controller.user_login(request)
 
 
-@api_view(["GET"])
+@api_view(["GET", "POST"])
 def signup(request: Request) -> Response:
     auth_controller = AuthenticationController()
     return auth_controller.user_signup(request)

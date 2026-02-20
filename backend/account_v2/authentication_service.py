@@ -14,7 +14,11 @@ from tenant_account_v2.organization_member_service import OrganizationMemberServ
 from utils.user_context import UserContext
 
 from account_v2.authentication_helper import AuthenticationHelper
-from account_v2.constants import DefaultOrg, ErrorMessage, UserLoginTemplate
+from account_v2.constants import (
+    DefaultOrg,
+    ErrorMessage,
+    UserLoginTemplate,
+)
 from account_v2.custom_exceptions import Forbidden, MethodNotImplemented
 from account_v2.dto import (
     CallbackData,
@@ -28,7 +32,8 @@ from account_v2.dto import (
 from account_v2.enums import UserRole
 from account_v2.models import Organization, User
 from account_v2.organization import OrganizationService
-from account_v2.serializer import LoginRequestSerializer
+from account_v2.serializer import LoginRequestSerializer, SignupRequestSerializer
+from account_v2.user import UserService
 
 logger = logging.getLogger(__name__)
 
@@ -92,27 +97,28 @@ class AuthenticationService:
             bool: True if the user is successfully authenticated and logged in,
                 False otherwise.
         """
-        # Validation of user credentials
-        if username != DefaultOrg.MOCK_USER or password != DefaultOrg.MOCK_USER_PASSWORD:
-            return False
-
         user = authenticate(request, username=username, password=password)
         if user:
-            # To avoid conflicts with django superuser
             if user.is_superuser:
                 return False
             login(request, user)
             return True
-        # Attempt to initiate default user and authenticate again
-        if self._set_default_user():
-            user = authenticate(request, username=username, password=password)
-            if user:
-                login(request, user)
-                return True
+        # Fallback: create/update default mock user and try again (backward compat)
+        if username == DefaultOrg.MOCK_USER and password == DefaultOrg.MOCK_USER_PASSWORD:
+            if self._set_default_user():
+                user = authenticate(request, username=username, password=password)
+                if user:
+                    login(request, user)
+                    return True
         return False
 
     def render_login_page(self, request: Request) -> Any:
-        return render(request, UserLoginTemplate.TEMPLATE)
+        context = {}
+        if request.GET.get("signed_up"):
+            context[UserLoginTemplate.SIGNUP_SUCCESS_PLACE_HOLDER] = (
+                ErrorMessage.SIGNUP_SUCCESS
+            )
+        return render(request, UserLoginTemplate.TEMPLATE, context)
 
     def render_login_page_with_error(self, request: Request, error_message: str) -> Any:
         return render(
@@ -143,7 +149,58 @@ class AuthenticationService:
         return serializer.validated_data
 
     def user_signup(self, request: HttpRequest) -> Any:
-        raise MethodNotImplemented()
+        """Handle sign up: GET shows auth page, POST creates account."""
+        if request.method == "GET":
+            return redirect("public:login")
+        serializer = SignupRequestSerializer(data=request.POST)
+        if not serializer.is_valid():
+            error_messages = list(serializer.errors.values())
+            first_error = error_messages[0][0] if error_messages else "Invalid input."
+            return self._render_login_page_with_signup_error(request, first_error)
+        username = serializer.validated_data["username"].strip()
+        password = serializer.validated_data["password"]
+        if User.objects.filter(username=username).exists():
+            return self._render_login_page_with_signup_error(
+                request, ErrorMessage.USERNAME_TAKEN
+            )
+        user_id = str(uuid.uuid4())
+        user = User(
+            username=username,
+            user_id=user_id,
+            email=username if "@" in username else f"{username}@local",
+            password=make_password(password),
+            auth_provider="",
+        )
+        user.save()
+        org = OrganizationService.get_organization_by_org_id(DefaultOrg.ORGANIZATION_NAME)
+        if not org:
+            org = OrganizationService.create_organization(
+                name=DefaultOrg.ORGANIZATION_NAME,
+                display_name=DefaultOrg.ORGANIZATION_NAME,
+                organization_id=DefaultOrg.ORGANIZATION_NAME,
+            )
+        UserContext.set_organization_identifier(DefaultOrg.ORGANIZATION_NAME)
+        try:
+            OrganizationMember(
+                user=user,
+                role=UserRole.ADMIN.value,
+                is_login_onboarding_msg=True,
+                is_prompt_studio_onboarding_msg=True,
+            ).save()
+        except Exception as e:
+            logger.warning("OrganizationMember create: %s", e)
+        # Log the user in and send them to the app (same as after login)
+        login(request, user, backend=settings.DEFAULT_MODEL_BACKEND)
+        return redirect(settings.WEB_APP_ORIGIN_URL)
+
+    def _render_login_page_with_signup_error(
+        self, request: HttpRequest, error_message: str
+    ) -> Any:
+        return render(
+            request,
+            UserLoginTemplate.TEMPLATE,
+            {UserLoginTemplate.SIGNUP_ERROR_PLACE_HOLDER: error_message},
+        )
 
     def is_admin_by_role(self, role: str) -> bool:
         """Check the role with actual admin Role.

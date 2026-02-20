@@ -87,6 +87,35 @@ class OrganizationSignupResponseSerializer(serializers.Serializer):
     created_at = serializers.CharField()
 
 
+class SignupRequestSerializer(serializers.Serializer):
+    username = serializers.CharField(required=True)
+    password = serializers.CharField(required=True)
+    confirm_password = serializers.CharField(required=True, write_only=True)
+
+    def validate_username(self, value: str | None) -> str:
+        """Check that the username is not empty and has at least 3 characters."""
+        if not value or len(value) < 3:
+            raise serializers.ValidationError(
+                "Username must be at least 3 characters long."
+            )
+        return value
+
+    def validate_password(self, value: str | None) -> str:
+        """Check that the password is not empty and has at least 3 characters."""
+        if not value or len(value) < 3:
+            raise serializers.ValidationError(
+                "Password must be at least 3 characters long."
+            )
+        return value
+
+    def validate(self, attrs):
+        if attrs.get("password") != attrs.get("confirm_password"):
+            raise serializers.ValidationError(
+                {"confirm_password": "Passwords do not match."}
+            )
+        return attrs
+
+
 class LoginRequestSerializer(serializers.Serializer):
     username = serializers.CharField(required=True)
     password = serializers.CharField(required=True)
