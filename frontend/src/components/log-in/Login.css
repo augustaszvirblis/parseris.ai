@@ -5,9 +5,9 @@
     flex-direction: column;
 }
 
-.login-left-section {
-    width: 50%;
-    height: 100vh;
+.login-center-section {
+    width: 100%;
+    min-height: 100vh;
     overflow-y: auto;
     display: flex;
     justify-content: center;
@@ -15,14 +15,14 @@
     background-color: #fff;
 }
 
-.login-right-section {
-    width: 50%;
-    height: 100vh;
-    overflow-y: auto;
-    background-color: #ECEFF3;
-    display: flex;
-    justify-content: center;
-    align-items: center;
+/* Force single-column layout: hide right panel and make left full width */
+.login-main .login-right-section,
+.login-main .right-section-text-wrapper {
+    display: none !important;
+}
+.login-main .login-left-section {
+    width: 100% !important;
+    max-width: 100% !important;
 }
 
 .right-section-text-wrapper{
@@ -64,18 +64,34 @@
 }
 
 .button-wraper {
-    width: 450px;
-    height: 550px;
-    position: fixed;
+    width: 100%;
+    max-width: 450px;
     display: flex;
     flex-direction: column;
     gap: 20px;
-    justify-content: center;
+    align-items: center;
+    text-align: center;
 }
 
 .logo {
     height: 50px;
+    width: auto;
+}
+
+.logo-text {
+    margin: 0;
+    font-size: 32px;
+    font-weight: 600;
+    color: #05182A;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.login-button-wrap {
     width: 100%;
+    display: flex;
+    justify-content: center;
 }
 
 .text-wrapper {
@@ -88,6 +104,7 @@
 
 .login-button {
     width: 100%;
+    max-width: 320px;
     margin: 0 auto;
     height: 50px;
     background-color: #2F93F6;
