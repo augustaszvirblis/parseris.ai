@@ -3,6 +3,7 @@ import PropTypes from "prop-types";
 import { DownloadOutlined, InfoCircleFilled } from "@ant-design/icons";
 import { saveAs } from "file-saver";
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import * as XLSX from "xlsx";
 
 import {
@@ -79,13 +80,22 @@ function DisplayPromptResult({
   const [isLoading, setIsLoading] = useState(false);
   const [parsedOutput, setParsedOutput] = useState(null);
   const [selectedKey, setSelectedKey] = useState(null);
-  const [jsonTableViewMode, setJsonTableViewMode] = useState("json");
+  const [jsonTableViewMode, setJsonTableViewMode] = useState("table");
   const {
     singlePassExtractMode,
     isSinglePassExtractLoading,
     details,
     selectedHighlight,
+    isSimplePromptStudio,
   } = useCustomToolStore();
+  const { pathname } = useLocation();
+  const isParserisHost =
+    typeof window !== "undefined" && window.location.hostname === "parseris.ai";
+  const useSimplifiedOutputUi =
+    isSimplePromptStudio ||
+    pathname.startsWith("/simple-prompt-studio") ||
+    pathname.includes("simple-prompt-studio") ||
+    isParserisHost;
 
   useEffect(() => {
     if (singlePassExtractMode && isSinglePassExtractLoading) {
@@ -409,15 +419,17 @@ function DisplayPromptResult({
       {tableData ? (
         <div className="prompt-output-json-table-view">
           <Space direction="vertical" size="small" style={{ width: "100%" }}>
-            <Segmented
-              options={[
-                { label: "JSON", value: "json" },
-                { label: "Table", value: "table" },
-              ]}
-              value={jsonTableViewMode}
-              onChange={setJsonTableViewMode}
-            />
-            {jsonTableViewMode === "table" ? (
+            {!useSimplifiedOutputUi && (
+              <Segmented
+                options={[
+                  { label: "JSON", value: "json" },
+                  { label: "Table", value: "table" },
+                ]}
+                value={jsonTableViewMode}
+                onChange={setJsonTableViewMode}
+              />
+            )}
+            {jsonTableViewMode === "table" || useSimplifiedOutputUi ? (
               <>
                 <Table
                   dataSource={tableDataSource}

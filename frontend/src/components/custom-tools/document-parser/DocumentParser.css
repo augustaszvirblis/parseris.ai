@@ -1,7 +1,12 @@
 /* Styles for DocumentParser */
 
+.doc-parser-export-header {
+  padding: 8px 0 12px 0;
+  flex-shrink: 0;
+}
+
 .doc-parser-layout {
-    height: 100%;
+  height: 100%;
 }
 
 .doc-parser-pad-top {

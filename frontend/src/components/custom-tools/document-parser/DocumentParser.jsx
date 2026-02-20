@@ -1,5 +1,10 @@
 import PropTypes from "prop-types";
 import { useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
+import { Button, Space } from "antd";
+import { DownloadOutlined } from "@ant-design/icons";
+import { saveAs } from "file-saver";
+import * as XLSX from "xlsx";
 
 import "./DocumentParser.css";
 import { promptType } from "../../../helpers/GetStaticData";
@@ -26,6 +31,42 @@ try {
   // The component will remain null of it is not available
 }
 
+function isTableLikeData(data) {
+  return (
+    Array.isArray(data) &&
+    data.length > 0 &&
+    data.every(
+      (item) =>
+        item !== null &&
+        item !== undefined &&
+        typeof item === "object" &&
+        !Array.isArray(item)
+    )
+  );
+}
+
+function getTableDataFromOutput(parsedOutput) {
+  let data = parsedOutput;
+  if (typeof data === "string") {
+    try {
+      data = JSON.parse(data);
+    } catch {
+      return null;
+    }
+  }
+  if (isTableLikeData(data)) return data;
+  if (
+    typeof data === "object" &&
+    data !== null &&
+    !Array.isArray(data) &&
+    Object.keys(data).length === 1
+  ) {
+    const val = Object.values(data)[0];
+    if (isTableLikeData(val)) return val;
+  }
+  return null;
+}
+
 function DocumentParser({
   addPromptInstance,
   scrollToBottom,
@@ -43,13 +84,24 @@ function DocumentParser({
     getDropdownItems,
     isChallengeEnabled,
     isPublicSource,
+    selectedDoc,
   } = useCustomToolStore();
   const { sessionDetails } = useSessionStore();
   const { setAlertDetails } = useAlertStore();
   const axiosPrivate = useAxiosPrivate();
   const handleException = useExceptionHandler();
   const { promptOutputs } = usePromptOutputStore();
+  const { pathname } = useLocation();
   let promptCardApiService;
+
+  useEffect(() => {
+    const isSimpleRoute =
+      pathname.startsWith("/simple-prompt-studio") ||
+      pathname.includes("simple-prompt-studio");
+    if (isSimpleRoute) {
+      updateCustomTool({ isSimplePromptStudio: true });
+    }
+  }, [pathname, updateCustomTool]);
 
   if (promptCardService && !isPublicSource) {
     promptCardApiService = promptCardService();
@@ -216,6 +268,44 @@ function DocumentParser({
     return outputs;
   };
 
+  // Collect table-like data from all prompt outputs for the selected document (for Export to Excel)
+  const getAggregatedTableData = () => {
+    const docId = selectedDoc?.document_id;
+    if (!docId || !promptOutputs) return null;
+    const allRows = [];
+    (details?.prompts || []).forEach((prompt) => {
+      const outputs = getPromptOutputs(prompt?.prompt_id);
+      Object.entries(outputs || {}).forEach(([key, entry]) => {
+        const keyParts = key.split("__");
+        if (keyParts[1] !== docId) return;
+        const tableData = getTableDataFromOutput(entry?.output);
+        if (tableData?.length) allRows.push(...tableData);
+      });
+    });
+    return allRows.length ? allRows : null;
+  };
+
+  const aggregatedTableData = getAggregatedTableData();
+
+  const handleExportExcel = () => {
+    const wb = XLSX.utils.book_new();
+    const data =
+      aggregatedTableData && aggregatedTableData.length > 0
+        ? aggregatedTableData
+        : [
+            {
+              "No data": "Run prompts and ensure JSON/table output to export.",
+            },
+          ];
+    const ws = XLSX.utils.json_to_sheet(data);
+    XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([wbout], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    saveAs(blob, "prompt-export.xlsx");
+  };
+
   if (!details?.prompts?.length) {
     if (isSimplePromptStudio && SpsPromptsEmptyState) {
       return <SpsPromptsEmptyState />;
@@ -231,28 +321,42 @@ function DocumentParser({
   }
 
   return (
-    <div className="doc-parser-layout">
-      {details?.prompts?.map((item) => {
-        return (
-          <div key={item.prompt_id}>
-            <div className="doc-parser-pad-top" />
-            <PromptCardWrapper
-              item={item}
-              handleChangePromptCard={handleChangePromptCard}
-              handleDelete={handleDelete}
-              outputs={getPromptOutputs(item?.prompt_id)}
-              enforceTypeList={enforceTypeList}
-              allTableSettings={allTableSettings}
-              setAllTableSettings={setAllTableSettings}
-              setUpdatedPromptsCopy={setUpdatedPromptsCopy}
-              coverageCountData={item?.coverage}
-              isChallenge={isChallenge}
-            />
-            <div ref={bottomRef} className="doc-parser-pad-bottom" />
-          </div>
-        );
-      })}
-    </div>
+    <>
+      <div className="doc-parser-export-header">
+        <Space>
+          <Button
+            type="primary"
+            icon={<DownloadOutlined />}
+            onClick={handleExportExcel}
+            size="small"
+          >
+            Export to Excel
+          </Button>
+        </Space>
+      </div>
+      <div className="doc-parser-layout">
+        {details?.prompts?.map((item) => {
+          return (
+            <div key={item.prompt_id}>
+              <div className="doc-parser-pad-top" />
+              <PromptCardWrapper
+                item={item}
+                handleChangePromptCard={handleChangePromptCard}
+                handleDelete={handleDelete}
+                outputs={getPromptOutputs(item?.prompt_id)}
+                enforceTypeList={enforceTypeList}
+                allTableSettings={allTableSettings}
+                setAllTableSettings={setAllTableSettings}
+                setUpdatedPromptsCopy={setUpdatedPromptsCopy}
+                coverageCountData={item?.coverage}
+                isChallenge={isChallenge}
+              />
+              <div ref={bottomRef} className="doc-parser-pad-bottom" />
+            </div>
+          );
+        })}
+      </div>
+    </>
   );
 }
 

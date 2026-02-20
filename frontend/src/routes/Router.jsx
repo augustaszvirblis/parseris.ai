@@ -1,4 +1,4 @@
-import { Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 
 import { GenericError } from "../components/error/GenericError/GenericError.jsx";
 import { NotFound } from "../components/error/NotFound/NotFound.jsx";
@@ -103,6 +103,16 @@ function Router() {
       <Route path="" element={<PersistentLogin />}>
         {/* public routes */}
         <Route path="">
+          {/* redirect root to prompt studio so users land on convert flow without login */}
+          {SimplePromptStudioHelper &&
+            SimplePromptStudio &&
+            SpsLanding &&
+            SpsUpload && (
+              <Route
+                path="/"
+                element={<Navigate to="/simple-prompt-studio/upload" replace />}
+              />
+            )}
           {/* public routes accessible only to unauthenticated users */}
           <Route path="" element={<RequireGuest />}>
             <Route path="landing" element={<LandingPage />} />

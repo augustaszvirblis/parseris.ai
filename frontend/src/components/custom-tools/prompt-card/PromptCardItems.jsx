@@ -12,6 +12,7 @@ import {
   Typography,
 } from "antd";
 import { useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 
 import { SpinnerLoader } from "../../widgets/spinner-loader/SpinnerLoader";
 import { EditableText } from "../editable-text/EditableText";
@@ -70,6 +71,14 @@ function PromptCardItems({
     details,
     singlePassExtractMode,
   } = useCustomToolStore();
+  const { pathname } = useLocation();
+  const isParserisHost =
+    typeof window !== "undefined" && window.location.hostname === "parseris.ai";
+  const isSimplePromptStudioRoute =
+    pathname.startsWith("/simple-prompt-studio") ||
+    pathname.includes("simple-prompt-studio");
+  const useSimplifiedOutputUi =
+    isSimplePromptStudio || isSimplePromptStudioRoute || isParserisHost;
 
   const [isEditingPrompt, setIsEditingPrompt] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -84,10 +93,13 @@ function PromptCardItems({
   const promptId = promptDetails?.prompt_id;
 
   useEffect(() => {
-    if (enforceType !== promptDetails?.enforce_type) {
-      setEnforceType(promptDetails?.enforce_type);
+    const effectiveType = useSimplifiedOutputUi
+      ? "json"
+      : promptDetails?.enforce_type;
+    if (enforceType !== effectiveType) {
+      setEnforceType(effectiveType);
     }
-  }, [promptDetails]);
+  }, [promptDetails, useSimplifiedOutputUi]);
 
   useEffect(() => {
     setTableSettings(
@@ -229,7 +241,7 @@ function PromptCardItems({
             />
           </div>
           <>
-            {!isSimplePromptStudio && (
+            {!useSimplifiedOutputUi && (
               <>
                 <Divider className="prompt-card-divider" />
                 <Space direction="vertical" className="prompt-card-comp-layout">
@@ -278,21 +290,23 @@ function PromptCardItems({
                           setAllTableSettings={setAllTableSettings}
                         />
                       )}
-                      <Select
-                        className="prompt-card-select-type"
-                        size="small"
-                        placeholder="Enforce Type"
-                        optionFilterProp="children"
-                        options={enforceTypeList}
-                        value={promptDetails?.enforce_type || null}
-                        disabled={
-                          isCoverageLoading ||
-                          isSinglePassExtractLoading ||
-                          indexDocs.includes(selectedDoc?.document_id) ||
-                          isPublicSource
-                        }
-                        onChange={(value) => handleTypeChange(value)}
-                      />
+                      {!useSimplifiedOutputUi && (
+                        <Select
+                          className="prompt-card-select-type"
+                          size="small"
+                          placeholder="Enforce Type"
+                          optionFilterProp="children"
+                          options={enforceTypeList}
+                          value={promptDetails?.enforce_type || null}
+                          disabled={
+                            isCoverageLoading ||
+                            isSinglePassExtractLoading ||
+                            indexDocs.includes(selectedDoc?.document_id) ||
+                            isPublicSource
+                          }
+                          onChange={(value) => handleTypeChange(value)}
+                        />
+                      )}
                     </Space>
                   </div>
                 </Space>
