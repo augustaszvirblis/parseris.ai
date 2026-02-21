@@ -7,7 +7,10 @@ import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
 
 import "./DocumentParser.css";
-import { promptType } from "../../../helpers/GetStaticData";
+import {
+  normalizeTableDataForExcel,
+  promptType,
+} from "../../../helpers/GetStaticData";
 import { useAxiosPrivate } from "../../../hooks/useAxiosPrivate";
 import { useAlertStore } from "../../../store/alert-store";
 import { useCustomToolStore } from "../../../store/custom-tool-store";
@@ -289,7 +292,7 @@ function DocumentParser({
 
   const handleExportExcel = () => {
     const wb = XLSX.utils.book_new();
-    const data =
+    const rawData =
       aggregatedTableData && aggregatedTableData.length > 0
         ? aggregatedTableData
         : [
@@ -297,6 +300,7 @@ function DocumentParser({
               "No data": "Run prompts and ensure JSON/table output to export.",
             },
           ];
+    const data = normalizeTableDataForExcel(rawData);
     const ws = XLSX.utils.json_to_sheet(data);
     XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
     const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });

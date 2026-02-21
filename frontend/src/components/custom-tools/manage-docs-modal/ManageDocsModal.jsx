@@ -630,26 +630,44 @@ function ManageDocsModal({
 
     if (info.file.status === "done") {
       setIsUploading(false);
-      setAlertDetails({
-        type: "success",
-        content: "File uploaded successfully",
-      });
 
       const data = info.file.response?.data;
-      const doc = data?.length > 0 ? data[0] : {};
+      const uploadedDocs = Array.isArray(data) ? data : data ? [data] : [];
       const newListOfDocs = [...listOfDocs];
-      newListOfDocs.push(doc);
+      uploadedDocs.forEach((doc) => newListOfDocs.push(doc));
+
+      const allIndexed = uploadedDocs.every((d) => d.indexed === true);
+      const firstIndexingError = uploadedDocs.find(
+        (d) => d.indexing_error
+      )?.indexing_error;
+      const alertContent =
+        uploadedDocs.length === 0
+          ? "File uploaded successfully"
+          : allIndexed
+          ? "File(s) uploaded and indexed successfully"
+          : firstIndexingError
+          ? `File(s) uploaded. Indexing skipped: ${firstIndexingError}`
+          : "File(s) uploaded successfully";
+      setAlertDetails({
+        type: firstIndexingError && !allIndexed ? "warning" : "success",
+        content: alertContent,
+      });
+
       const body = {
         listOfDocs: newListOfDocs,
       };
       updateCustomTool(body);
-      handleUpdateTool({ output: doc?.document_id });
+      const firstDoc = uploadedDocs[0];
+      if (firstDoc) {
+        handleUpdateTool({ output: firstDoc.document_id });
+      }
 
       if (
-        newListOfDocs?.length === 1 &&
-        selectedDoc?.document_id !== doc?.document_id
+        listOfDocs?.length === 0 &&
+        firstDoc &&
+        selectedDoc?.document_id !== firstDoc?.document_id
       ) {
-        handleDocChange(doc);
+        handleDocChange(firstDoc);
       }
     } else if (info.file.status === "error") {
       setIsUploading(false);

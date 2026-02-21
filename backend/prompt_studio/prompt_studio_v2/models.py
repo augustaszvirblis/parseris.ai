@@ -57,7 +57,7 @@ class ToolStudioPrompt(BaseModel):
         db_comment="Field to store the type in \
             which the response to be returned.",
         choices=EnforceType.choices,
-        default=EnforceType.TEXT,
+        default=EnforceType.JSON,
     )
     # New field to track if it was line-item
     has_line_item_history = models.BooleanField(default=False)

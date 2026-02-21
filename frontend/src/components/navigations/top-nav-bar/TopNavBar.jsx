@@ -73,6 +73,24 @@ try {
 }
 
 const CustomLogo = ({ onClick, className }) => {
+  // Use text logo when config.logoText is set (e.g. "Parseris.ai - Free PDF to Excel")
+  if (config.logoText) {
+    return (
+      <Typography.Text
+        className={className}
+        onClick={onClick}
+        style={{
+          cursor: onClick ? "pointer" : undefined,
+          fontWeight: 600,
+          fontSize: "1.25rem",
+          whiteSpace: "nowrap",
+          color: "#fff",
+        }}
+      >
+        {config.logoText}
+      </Typography.Text>
+    );
+  }
   // Use Ant Design Image and config.logoUrl
   if (config.logoUrl) {
     return (
@@ -464,34 +482,36 @@ function TopNavBar({ isSimpleLayout, topNavBarOptions }) {
       )}
 
       <Col span={4}>
-        <Row justify="end" align="middle">
-          <Space>
-            {topNavBarOptions}
-            {isUnstract && TrialDaysInfo && <TrialDaysInfo />}
-            <Dropdown
-              menu={{ items, className: "user-profile-menu" }}
-              placement="bottomLeft"
-              arrow
-              className="top-navbar-dp"
-            >
-              <div className="top-navbar-dp">
-                {sessionDetails?.picture ? (
-                  <Image
-                    className="navbar-img"
-                    height="100%"
-                    width="100%"
-                    preview={false}
-                    src={sessionDetails?.picture}
-                  />
-                ) : (
-                  <Typography.Text className="initials">
-                    {getInitials(sessionDetails?.name)}
-                  </Typography.Text>
-                )}
-              </div>
-            </Dropdown>
-          </Space>
-        </Row>
+        {!config.logoText && (
+          <Row justify="end" align="middle">
+            <Space>
+              {topNavBarOptions}
+              {isUnstract && TrialDaysInfo && <TrialDaysInfo />}
+              <Dropdown
+                menu={{ items, className: "user-profile-menu" }}
+                placement="bottomLeft"
+                arrow
+                className="top-navbar-dp"
+              >
+                <div className="top-navbar-dp">
+                  {sessionDetails?.picture ? (
+                    <Image
+                      className="navbar-img"
+                      height="100%"
+                      width="100%"
+                      preview={false}
+                      src={sessionDetails?.picture}
+                    />
+                  ) : (
+                    <Typography.Text className="initials">
+                      {getInitials(sessionDetails?.name)}
+                    </Typography.Text>
+                  )}
+                </div>
+              </Dropdown>
+            </Space>
+          </Row>
+        )}
       </Col>
     </Row>
   );

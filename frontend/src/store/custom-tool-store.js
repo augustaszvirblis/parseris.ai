@@ -36,7 +36,7 @@ const defaultState = {
 const defaultPromptInstance = {
   prompt_key: "Enter key",
   prompt: "Enter prompt",
-  output_type: "Text",
+  output_type: "json",
   output_processing: "Default",
   prompt_type: promptType.prompt,
 };
@@ -44,7 +44,7 @@ const defaultPromptInstance = {
 const defaultNoteInstance = {
   prompt_key: "Enter key",
   prompt: "Enter notes",
-  output_type: "Text",
+  output_type: "json",
   output_processing: "Default",
   prompt_type: promptType.notes,
 };

@@ -41,9 +41,11 @@ from prompt_studio.prompt_studio_core_v2.document_indexing_service import (
     DocumentIndexingService,
 )
 from prompt_studio.prompt_studio_core_v2.exceptions import (
+    DefaultProfileError,
     DeploymentUsageCheckError,
     IndexingAPIError,
     MaxProfilesReachedError,
+    PermissionError as PromptStudioPermissionError,
     ToolDeleteError,
 )
 from prompt_studio.prompt_studio_core_v2.migration_utils import SummarizeMigrationUtils
@@ -119,6 +121,72 @@ class PromptStudioCoreView(viewsets.ModelViewSet):
             request.user, serializer.data["tool_id"]
         )
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=["get"])
+    def get_or_create_default_project(self, request: HttpRequest) -> Response:
+        """Return the first accessible project, or create one if the user has none.
+
+        Idempotent: safe to call on every tools list load. Used so new users
+        land in a project by default instead of an empty list.
+        """
+        try:
+            queryset = self.get_queryset().order_by("created_at")
+            existing = queryset.first()
+            if existing:
+                return Response(
+                    {"tool_id": str(existing.tool_id)},
+                    status=status.HTTP_200_OK,
+                )
+            # Create a default project (same flow as create() but with fixed payload)
+            author = getattr(request.user, "email", None) or getattr(
+                request.user, "username", ""
+            ) or "User"
+            payload = {
+                "tool_name": "Parseris",
+                "description": "Default Prompt Studio project",
+                "author": author,
+            }
+            serializer = self.get_serializer(data=payload)
+            serializer.is_valid(raise_exception=True)
+            try:
+                self.perform_create(serializer)
+            except IntegrityError:
+                # Race: another request created one; return that
+                existing = queryset.first()
+                if existing:
+                    return Response(
+                        {"tool_id": str(existing.tool_id)},
+                        status=status.HTTP_200_OK,
+                    )
+                raise DuplicateData(
+                    f"{ToolStudioErrors.TOOL_NAME_EXISTS}, "
+                    f"{ToolStudioErrors.DUPLICATE_API}"
+                )
+            tool_id = serializer.data["tool_id"]
+            try:
+                PromptStudioHelper.create_default_profile_manager(
+                    request.user, tool_id
+                )
+            except Exception as profile_err:
+                logger.warning(
+                    "Default profile creation failed for tool %s: %s",
+                    tool_id,
+                    profile_err,
+                    exc_info=True,
+                )
+                # Project was created; still return success
+            return Response(
+                {"tool_id": tool_id},
+                status=status.HTTP_201_CREATED,
+            )
+        except DuplicateData:
+            raise
+        except Exception as e:
+            logger.exception("get_or_create_default_project failed: %s", e)
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     def perform_destroy(self, instance: CustomTool) -> None:
         organization_id = UserSessionUtils.get_organization_id(self.request)
@@ -584,6 +652,52 @@ class PromptStudioCoreView(viewsets.ModelViewSet):
                 "document_name": document.document_name,
                 "tool": document.tool.tool_id,
             }
+            # Auto-index the document on upload
+            org_id = UserSessionUtils.get_organization_id(request)
+            user_id = custom_tool.created_by.user_id
+            run_id = CommonUtils.generate_uuid()
+            try:
+                unique_id = PromptStudioHelper.index_document(
+                    tool_id=str(custom_tool.tool_id),
+                    file_name=file_name,
+                    org_id=org_id,
+                    user_id=user_id,
+                    document_id=document.document_id,
+                    run_id=run_id,
+                )
+                doc["indexed"] = bool(unique_id)
+                if not unique_id:
+                    doc["indexing_error"] = "Indexing did not return an index id."
+            except DefaultProfileError:
+                doc["indexed"] = False
+                doc["indexing_error"] = (
+                    "Default LLM profile is not configured. "
+                    "Set an LLM profile as default to enable indexing."
+                )
+                logger.warning(
+                    "Upload auto-index skipped for document %s: no default profile",
+                    document.document_id,
+                )
+            except (IndexingAPIError, PromptStudioPermissionError) as e:
+                doc["indexed"] = False
+                err_detail = getattr(e, "detail", str(e))
+                doc["indexing_error"] = (
+                    err_detail[0] if isinstance(err_detail, list) else err_detail
+                )
+                logger.warning(
+                    "Upload auto-index failed for document %s: %s",
+                    document.document_id,
+                    e,
+                    exc_info=True,
+                )
+            except Exception as e:
+                doc["indexed"] = False
+                doc["indexing_error"] = "Indexing failed."
+                logger.exception(
+                    "Upload auto-index failed for document %s: %s",
+                    document.document_id,
+                    e,
+                )
             documents.append(doc)
         return Response({"data": documents})
 

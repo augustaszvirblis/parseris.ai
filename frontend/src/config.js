@@ -17,6 +17,20 @@ const config = {
     process.env.REACT_APP_FAVICON_PATH ||
     "/favicon.ico",
   logoUrl: runtimeConfig.logoUrl || process.env.REACT_APP_CUSTOM_LOGO_URL,
+  logoText:
+    runtimeConfig.logoText ||
+    process.env.REACT_APP_LOGO_TEXT ||
+    (typeof window !== "undefined" &&
+    window.location?.hostname?.includes("parseris")
+      ? "Parseris.ai - Free PDF to Excel"
+      : undefined),
+  appName:
+    runtimeConfig.appName ||
+    process.env.REACT_APP_APP_NAME ||
+    (typeof window !== "undefined" &&
+    window.location?.hostname?.includes("parseris")
+      ? "Parseris.ai"
+      : "Unstract"),
   // Add more values as OR case, if needed for fallback.
 };
 

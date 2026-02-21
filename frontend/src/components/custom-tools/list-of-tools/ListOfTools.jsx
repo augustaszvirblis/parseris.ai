@@ -2,6 +2,7 @@ import { ArrowDownOutlined, PlusOutlined } from "@ant-design/icons";
 import { useCallback, useEffect, useState } from "react";
 import { Space } from "antd";
 import PropTypes from "prop-types";
+import { useNavigate } from "react-router-dom";
 
 import { useAxiosPrivate } from "../../../hooks/useAxiosPrivate";
 import { useAlertStore } from "../../../store/alert-store";
@@ -59,6 +60,7 @@ function ListOfTools() {
   const { setAlertDetails } = useAlertStore();
   const axiosPrivate = useAxiosPrivate();
   const handleException = useExceptionHandler();
+  const navigate = useNavigate();
 
   const [listOfTools, setListOfTools] = useState([]);
   const [filteredListOfTools, setFilteredListOfTools] = useState([]);
@@ -81,7 +83,7 @@ function ListOfTools() {
   const getListOfTools = () => {
     const requestOptions = {
       method: "GET",
-      url: `/api/v1/unstract/${sessionDetails?.orgId}/prompt-studio/ `,
+      url: `/api/v1/unstract/${sessionDetails?.orgId}/prompt-studio/`,
       headers: {
         "X-CSRFToken": sessionDetails?.csrfToken,
       },
@@ -90,9 +92,32 @@ function ListOfTools() {
     setIsListLoading(true);
     axiosPrivate(requestOptions)
       .then((res) => {
-        const data = res?.data;
+        const data = res?.data ?? [];
         setListOfTools(data);
         setFilteredListOfTools(data);
+        // If user has no projects, get-or-create default and open it
+        if (
+          Array.isArray(data) &&
+          data.length === 0 &&
+          sessionDetails?.orgName
+        ) {
+          axiosPrivate({
+            method: "GET",
+            url: `/api/v1/unstract/${sessionDetails.orgId}/prompt-studio/get_or_create_default_project/`,
+            headers: { "X-CSRFToken": sessionDetails?.csrfToken },
+          })
+            .then((defaultRes) => {
+              const toolId = defaultRes?.data?.tool_id;
+              if (toolId) {
+                navigate(`/${sessionDetails.orgName}/tools/${toolId}`);
+              }
+            })
+            .catch((err) => {
+              setAlertDetails(
+                handleException(err, "Failed to create default project")
+              );
+            });
+        }
       })
       .catch((err) => {
         setAlertDetails(

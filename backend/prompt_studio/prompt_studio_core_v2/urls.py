@@ -59,10 +59,18 @@ prompt_studio_deployment_usage = PromptStudioCoreView.as_view(
     {"get": "check_deployment_usage"}
 )
 
+prompt_studio_get_or_create_default = PromptStudioCoreView.as_view(
+    {"get": "get_or_create_default_project"}
+)
 
 urlpatterns = format_suffix_patterns(
     [
         path("prompt-studio/", prompt_studio_list, name="prompt-studio-list"),
+        path(
+            "prompt-studio/get_or_create_default_project/",
+            prompt_studio_get_or_create_default,
+            name="prompt-studio-get-or-create-default",
+        ),
         path(
             "prompt-studio/<uuid:pk>/",
             prompt_studio_detail,

@@ -33,11 +33,21 @@ class ExtractionService:
         execution_run_data_folder: str | None = None,
     ) -> str:
         extracted_text = ""
-        util = PromptServiceBaseTool(platform_key=platform_key)
-        x2text = X2Text(
-            tool=util, adapter_instance_id=x2text_instance_id, usage_kwargs=usage_kwargs
-        )
-        fs = FileUtils.get_fs_instance(execution_source=execution_source)
+        try:
+            util = PromptServiceBaseTool(platform_key=platform_key)
+            x2text = X2Text(
+                tool=util,
+                adapter_instance_id=x2text_instance_id,
+                usage_kwargs=usage_kwargs,
+            )
+            fs = FileUtils.get_fs_instance(execution_source=execution_source)
+        except (X2TextError, ValueError) as e:
+            msg = str(e) if str(e) else "Text extractor or storage config error."
+            raise ExtractionError(msg, code=400) from e
+        except Exception as e:
+            msg = str(e) if str(e) else "Failed to initialize extractor."
+            raise ExtractionError(msg, code=500) from e
+
         try:
             if enable_highlight and (
                 isinstance(x2text.x2text_instance, LLMWhisperer)
@@ -74,6 +84,12 @@ class ExtractionService:
             msg += str(e)
             code = e.status_code if e.status_code != -1 else 500
             raise ExtractionError(msg, code=code) from e
+        except (FileNotFoundError, OSError) as e:
+            msg = f"File not found or not readable: {file_path}. {e}"
+            raise ExtractionError(msg, code=404) from e
+        except Exception as e:
+            msg = str(e) if str(e) else "Extraction failed."
+            raise ExtractionError(msg, code=500) from e
 
     @staticmethod
     def update_exec_metadata(

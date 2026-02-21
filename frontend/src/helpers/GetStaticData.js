@@ -339,6 +339,39 @@ const isJson = (text) => {
   }
 };
 
+/**
+ * Normalizes table data (array of row objects) for Excel export.
+ * Uses JSON as the source of truth: parses if needed, then ensures every cell
+ * is a primitive (string, number, boolean) so the Excel file is valid.
+ * Nested objects/arrays are stringified as JSON.
+ * @param {Array<Record<string, unknown>>} tableData - Rows from getTableData / prompt output
+ * @return {Array<Record<string, string | number | boolean>>}
+ */
+const normalizeTableDataForExcel = (tableData) => {
+  if (!Array.isArray(tableData) || tableData.length === 0) return [];
+  const toCellValue = (value) => {
+    if (value === null || value === undefined) return "";
+    if (
+      typeof value === "string" ||
+      typeof value === "number" ||
+      typeof value === "boolean"
+    )
+      return value;
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  };
+  return tableData.map((row) => {
+    const out = {};
+    for (const key of Object.keys(row)) {
+      out[key] = toCellValue(row[key]);
+    }
+    return out;
+  });
+};
+
 const displayPromptResult = (
   output,
   isFormat = false,
@@ -721,6 +754,7 @@ export {
   base64toBlob,
   removeFileExtension,
   isJson,
+  normalizeTableDataForExcel,
   displayPromptResult,
   getBackendErrorDetail,
   titleCase,

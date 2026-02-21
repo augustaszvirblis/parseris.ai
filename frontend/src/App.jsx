@@ -94,7 +94,7 @@ function App() {
         )}
         <BrowserRouter>
           <PostHogPageviewTracker />
-          <PageTitle title={"Unstract"} />
+          <PageTitle />
           {GoogleTagManagerHelper && <GoogleTagManagerHelper />}
           {contextHolder}
           <Router />

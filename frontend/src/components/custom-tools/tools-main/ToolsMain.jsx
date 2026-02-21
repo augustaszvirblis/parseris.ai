@@ -98,6 +98,7 @@ function ToolsMain() {
     prompt_type: promptType.prompt,
     profile_manager: defaultLlmProfile,
     sequence_number: getSequenceNumber(prompts),
+    enforce_type: "json",
   };
 
   const defaultNoteInstance = {
@@ -106,6 +107,7 @@ function ToolsMain() {
     tool_id: details?.tool_id,
     prompt_type: promptType.notes,
     sequence_number: getSequenceNumber(prompts),
+    enforce_type: "json",
   };
 
   useEffect(() => {

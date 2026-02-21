@@ -10,6 +10,7 @@ import {
   displayPromptResult,
   generateApiRunStatusId,
   generateUUID,
+  normalizeTableDataForExcel,
   PROMPT_RUN_API_STATUSES,
 } from "../../../helpers/GetStaticData";
 import "./PromptCard.css";
@@ -376,8 +377,9 @@ function DisplayPromptResult({
 
   const handleExportExcel = () => {
     if (!tableData) return;
+    const normalized = normalizeTableDataForExcel(tableData);
     const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(tableData);
+    const ws = XLSX.utils.json_to_sheet(normalized);
     XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
     const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     const blob = new Blob([wbout], {

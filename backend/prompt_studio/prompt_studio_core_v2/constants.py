@@ -217,7 +217,7 @@ class DefaultValues:
     DEFAULT_IS_ASSERT = False
     DEFAULT_ACTIVE = True
     DEFAULT_REQUIRED = True
-    DEFAULT_ENFORCE_TYPE = "text"
+    DEFAULT_ENFORCE_TYPE = "json"
     DEFAULT_ICON = ""
     DEFAULT_PREAMBLE = ""
     DEFAULT_POSTAMBLE = ""

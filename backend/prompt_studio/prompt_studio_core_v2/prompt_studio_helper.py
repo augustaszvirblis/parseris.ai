@@ -1329,6 +1329,15 @@ class PromptStudioHelper:
         usage_kwargs = {"run_id": run_id}
         # Orginal file name with which file got uploaded in prompt studio
         usage_kwargs["file_name"] = filename
+        fs_instance = EnvHelper.get_storage(
+            storage_type=StorageType.PERMANENT,
+            env_name=FileStorageKeys.PERMANENT_REMOTE_STORAGE,
+        )
+        if not fs_instance.exists(file_path):
+            raise ExtractionAPIError(
+                f"File not found: '{filename}'. Ensure the document is uploaded.",
+                status_code=404,
+            )
         is_extracted = PromptStudioIndexHelper.check_extraction_status(
             document_id=document_id,
             profile_manager=profile_manager,
@@ -1336,10 +1345,6 @@ class PromptStudioHelper:
             enable_highlight=enable_highlight,
         )
         if is_extracted:
-            fs_instance = EnvHelper.get_storage(
-                storage_type=StorageType.PERMANENT,
-                env_name=FileStorageKeys.PERMANENT_REMOTE_STORAGE,
-            )
             try:
                 extracted_text = fs_instance.read(path=extract_file_path, mode="r")
                 logger.info("Extracted text found. Reading from file..")
@@ -1371,6 +1376,24 @@ class PromptStudioHelper:
                 request_id=StateStore.get(Common.REQUEST_ID),
             )
             extracted_text = responder.extract(payload=payload)
+            if extracted_text is None:
+                msg = (
+                    "Extraction service returned no content. "
+                    "Check that the prompt service is running and that "
+                    "PROMPT_HOST/PROMPT_PORT are correct; see backend and prompt-service logs."
+                )
+                PromptStudioIndexHelper.mark_extraction_status(
+                    document_id=document_id,
+                    profile_manager=profile_manager,
+                    x2text_config_hash=x2text_config_hash,
+                    enable_highlight=enable_highlight,
+                    extracted=False,
+                    error_message=msg,
+                )
+                raise ExtractionAPIError(
+                    f"Failed to extract '{filename}'. {msg}",
+                    status_code=500,
+                )
             success = PromptStudioIndexHelper.mark_extraction_status(
                 document_id=document_id,
                 profile_manager=profile_manager,
@@ -1384,8 +1407,27 @@ class PromptStudioHelper:
                 )
         except SdkError as e:
             msg = str(e)
-            if e.actual_err and hasattr(e.actual_err, "response"):
-                msg = e.actual_err.response.json().get("error", str(e))
+            if (
+                e.actual_err
+                and hasattr(e.actual_err, "response")
+                and e.actual_err.response is not None
+            ):
+                try:
+                    body = e.actual_err.response.json()
+                    if isinstance(body, dict) and body.get("error"):
+                        msg = body["error"]
+                except (ValueError, AttributeError):
+                    pass
+            logger.exception(
+                "Extraction failed for document %s (filename=%s): %s",
+                document_id,
+                filename,
+                e,
+            )
+            if "unexpected error" in msg.lower() or "something went wrong" in msg.lower():
+                msg = (
+                    f"{msg} Check backend and prompt-service logs for the underlying cause."
+                )
 
             success = PromptStudioIndexHelper.mark_extraction_status(
                 document_id=document_id,
