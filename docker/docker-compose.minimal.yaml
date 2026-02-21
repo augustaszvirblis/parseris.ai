@@ -1,0 +1,10 @@
+# Minimal is now the default: backend.depends_on in docker-compose.yaml is already minimal.
+# Run minimal (no workers, no Prompt Studio, no platform-service):
+#   VERSION=latest docker compose -f docker-compose.yaml up -d
+#
+# Run full stack:
+#   VERSION=latest docker compose -f docker-compose.yaml -f docker-compose.full.yaml --profile full up -d
+#
+# This file is kept for reference; you can omit it when running minimal.
+
+services: {}

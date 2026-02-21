@@ -1,0 +1,14 @@
+# Full-stack override: backend waits for platform-service, prompt-service, x2text-service.
+# Use with: docker compose -f docker-compose.yaml -f docker-compose.full.yaml --profile full up -d
+
+services:
+  backend:
+    depends_on:
+      - db
+      - redis
+      - rabbitmq
+      - minio
+      - minio-bootstrap
+      - platform-service
+      - prompt-service
+      - x2text-service
