@@ -72,23 +72,37 @@ try {
   // Ignore if hook not available
 }
 
+const PARSERIS_GITHUB_URL = "https://github.com/augustaszvirblis/parseris.ai";
+
 const CustomLogo = ({ onClick, className }) => {
   // Use text logo when config.logoText is set (e.g. "Parseris.ai - Free PDF to Excel")
   if (config.logoText) {
     return (
-      <Typography.Text
-        className={className}
-        onClick={onClick}
-        style={{
-          cursor: onClick ? "pointer" : undefined,
-          fontWeight: 600,
-          fontSize: "1.25rem",
-          whiteSpace: "nowrap",
-          color: "#fff",
-        }}
-      >
-        {config.logoText}
-      </Typography.Text>
+      <div className="topbar-logo-parseris">
+        <Typography.Text
+          className={className}
+          onClick={onClick}
+          style={{
+            cursor: onClick ? "pointer" : undefined,
+            fontWeight: 600,
+            fontSize: "1.25rem",
+            whiteSpace: "nowrap",
+            color: "#fff",
+          }}
+        >
+          {config.logoText}
+        </Typography.Text>
+        <Typography.Text className="topbar-logo-parseris-subtitle">
+          <a
+            href={PARSERIS_GITHUB_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: "rgba(255,255,255,0.85)", fontSize: "0.75rem" }}
+          >
+            Parseris.ai is open-source on GitHub
+          </a>
+        </Typography.Text>
+      </div>
     );
   }
   // Use Ant Design Image and config.logoUrl

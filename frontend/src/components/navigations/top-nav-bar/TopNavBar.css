@@ -26,6 +26,20 @@
   height: auto;
   margin-inline-end: 12px;
 }
+
+.topbar-logo-parseris {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.topbar-logo-parseris-subtitle a {
+  text-decoration: none;
+}
+
+.topbar-logo-parseris-subtitle a:hover {
+  text-decoration: underline;
+}
 .logout-button {
   color: inherit;
   background: inherit;
