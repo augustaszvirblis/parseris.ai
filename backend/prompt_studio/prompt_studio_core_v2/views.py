@@ -671,11 +671,11 @@ class PromptStudioCoreView(viewsets.ModelViewSet):
             except DefaultProfileError:
                 doc["indexed"] = False
                 doc["indexing_error"] = (
-                    "Default LLM profile is not configured. "
-                    "Set an LLM profile as default to enable indexing."
+                    "No LLM profile configured for this tool. "
+                    "Add a profile to enable indexing for uploaded documents."
                 )
                 logger.warning(
-                    "Upload auto-index skipped for document %s: no default profile",
+                    "Upload auto-index skipped for document %s: no profile configured",
                     document.document_id,
                 )
             except (IndexingAPIError, PromptStudioPermissionError) as e:

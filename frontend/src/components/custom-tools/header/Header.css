@@ -5,6 +5,18 @@
   background-color: #f5f7f9;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 768px) {
+  .custom-tools-header-layout {
+    padding: 8px 12px;
+  }
+
+  .custom-tools-header-btns {
+    flex-wrap: wrap;
+  }
 }
 
 .custom-tools-header-btns {

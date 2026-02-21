@@ -120,3 +120,21 @@ class ProfileManager(BaseModel):
             )
         except ProfileManager.DoesNotExist:
             raise DefaultProfileError
+
+    @staticmethod
+    def get_default_or_first_llm_profile(tool: CustomTool) -> "ProfileManager":
+        """Return default profile if set, otherwise first profile for the tool.
+        Allows indexing for all added documents when at least one profile exists."""
+        try:
+            return ProfileManager.objects.get(  # type: ignore
+                prompt_studio_tool=tool, is_default=True
+            )
+        except ProfileManager.DoesNotExist:
+            first = (
+                ProfileManager.objects.filter(prompt_studio_tool=tool)
+                .order_by("created_at")
+                .first()
+            )
+            if first:
+                return first
+            raise DefaultProfileError

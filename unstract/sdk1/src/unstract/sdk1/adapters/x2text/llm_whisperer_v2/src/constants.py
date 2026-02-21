@@ -89,6 +89,13 @@ class WhisperStatus:
     STATUS = "status"
 
 
+class WhispererRetry:
+    """Retry settings for transient failures (connection, timeout)."""
+
+    MAX_ATTEMPTS = 3
+    BACKOFF_SEC = 2
+
+
 class WhispererDefaults:
     """Defaults meant for LLMWhisperer."""
 

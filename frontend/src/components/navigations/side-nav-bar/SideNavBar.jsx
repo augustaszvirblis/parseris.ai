@@ -119,12 +119,13 @@ const getActiveSettingsKey = () => {
   return "platform";
 };
 
-const SettingsPopoverContent = ({ orgName, navigate }) => {
+const SettingsPopoverContent = ({ orgName, navigate, onNavigate }) => {
   const settingsMenuItems = getSettingsMenuItems(orgName);
   const currentActiveKey = getActiveSettingsKey();
 
   const handleMenuClick = (path) => {
     navigate(path);
+    onNavigate?.();
   };
 
   return (
@@ -148,9 +149,10 @@ const SettingsPopoverContent = ({ orgName, navigate }) => {
 SettingsPopoverContent.propTypes = {
   orgName: PropTypes.string.isRequired,
   navigate: PropTypes.func.isRequired,
+  onNavigate: PropTypes.func,
 };
 
-const SideNavBar = ({ collapsed }) => {
+const SideNavBar = ({ collapsed, onNavigate }) => {
   const navigate = useNavigate();
   const { sessionDetails } = useSessionStore();
   const { orgName, flags } = sessionDetails;
@@ -390,6 +392,7 @@ const SideNavBar = ({ collapsed }) => {
                     const handlePlatformClick = () => {
                       if (!el.disable) {
                         navigate(el.path);
+                        onNavigate?.();
                       }
                     };
 
@@ -433,6 +436,7 @@ const SideNavBar = ({ collapsed }) => {
                           <SettingsPopoverContent
                             orgName={orgName}
                             navigate={navigate}
+                            onNavigate={onNavigate}
                           />
                         }
                         trigger="hover"
@@ -454,6 +458,7 @@ const SideNavBar = ({ collapsed }) => {
                         onClick={() => {
                           if (!el.disable) {
                             navigate(el.path);
+                            onNavigate?.();
                           }
                         }}
                       >
@@ -491,6 +496,7 @@ const SideNavBar = ({ collapsed }) => {
 
 SideNavBar.propTypes = {
   collapsed: PropTypes.bool.isRequired,
+  onNavigate: PropTypes.func,
 };
 
 export default SideNavBar;

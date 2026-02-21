@@ -343,8 +343,8 @@ class PromptStudioHelper:
         )
         file_path = str(Path(file_path) / file_name)
 
-        # Always get the default profile first
-        default_profile = ProfileManager.get_default_llm_profile(tool)
+        # Use default profile if set, else first available—allows indexing for all added docs
+        default_profile = ProfileManager.get_default_or_first_llm_profile(tool)
         summary_profile = (
             default_profile  # Constructed profile for summarization, not stored in DB
         )

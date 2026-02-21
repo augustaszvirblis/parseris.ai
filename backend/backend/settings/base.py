@@ -350,8 +350,11 @@ INSTALLED_APPS = list(SHARED_APPS) + [
 ]
 DEFAULT_MODEL_BACKEND = "django.contrib.auth.backends.ModelBackend"
 GOOGLE_MODEL_BACKEND = "social_core.backends.google.GoogleOAuth2"
+# Allows login by non-unique username + password; must be tried first
+USERNAME_PASSWORD_BACKEND = "account_v2.auth_backends.UsernamePasswordBackend"
 
 AUTHENTICATION_BACKENDS = (
+    USERNAME_PASSWORD_BACKEND,
     DEFAULT_MODEL_BACKEND,
     GOOGLE_MODEL_BACKEND,
 )

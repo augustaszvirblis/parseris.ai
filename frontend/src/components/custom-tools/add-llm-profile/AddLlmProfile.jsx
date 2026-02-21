@@ -239,7 +239,10 @@ function AddLlmProfile({
               return newItems;
             });
           }
-          if (item?.adapter_type === "X2TEXT") {
+          if (
+            item?.adapter_type === "X2TEXT" &&
+            item?.adapter_name === "Native PDF"
+          ) {
             setX2TextItems((prev) => {
               const newItems = [...prev];
               newItems.push({

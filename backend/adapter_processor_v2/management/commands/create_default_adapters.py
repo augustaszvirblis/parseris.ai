@@ -27,9 +27,15 @@ class Command(BaseCommand):
         PINECONE_ENV = os.getenv("PINECONE_ENV", "us-east-1")
         PINECONE_INDEX = os.getenv("PINECONE_INDEX", "grand-beech")
         LLMWHISPERER_KEY = os.getenv("LLMWHISPERER_KEY")
-         
+        LLMWHISPERER_URL = os.getenv(
+            "LLMWHISPERER_URL",
+            "http://localhost:8080",  # default; use hostname reachable from prompt-service
+        )
+
         if not OPENAI_API_KEY:
-	    self.stderr.write("Error: OPENAI_API_KEY not found in environment variables.")
+            self.stderr.write(
+                "Error: OPENAI_API_KEY not found in environment variables."
+            )
             return
  
         try:
@@ -90,16 +96,27 @@ class Command(BaseCommand):
                     'index_name': PINECONE_INDEX,
                 }
             },
-            {
+        ]
+
+        # Add LLMWhisperer V2 only when URL and key are set (so indexing can reach it)
+        if LLMWHISPERER_URL and LLMWHISPERER_KEY:
+            adapters_config.append({
                 'name': 'LLMWhisperer V2',
                 'id': 'llmwhisperer|llmwhisperer_v2',
                 'type': AdapterTypes.X2TEXT.value,
                 'metadata': {
                     'adapter_name': 'LLMWhisperer',
-                    'api_key': LLMWHISPERER_KEY,
+                    'url': LLMWHISPERER_URL.rstrip('/'),
+                    'unstract_key': LLMWHISPERER_KEY,
                 }
-            },
-        ]
+            })
+        else:
+            self.stdout.write(
+                self.style.WARNING(
+                    '  ⚠ Skipping LLMWhisperer V2: set LLMWHISPERER_URL and '
+                    'LLMWHISPERER_KEY for indexing with LLMWhisperer.'
+                )
+            )
         
         self.stdout.write('\nCreating adapters...')
         created_count = 0

@@ -1,7 +1,10 @@
+import logging
 from pathlib import Path
 from typing import Any
 
 from unstract.prompt_service.constants import ExecutionSource
+
+logger = logging.getLogger(__name__)
 from unstract.prompt_service.constants import IndexingConstants as IKeys
 from unstract.prompt_service.exceptions import ExtractionError
 from unstract.prompt_service.helpers.prompt_ide_base_tool import PromptServiceBaseTool
@@ -80,8 +83,19 @@ class ExtractionService:
             msg = str(e) if str(e) else "Text extractor error."
             raise ExtractionError(msg, code=400) from e
         except AdapterError as e:
-            msg = f"Error from text extractor '{x2text.x2text_instance.get_name()}'. "
-            msg += str(e)
+            adapter_name = x2text.x2text_instance.get_name()
+            msg = f"Error from text extractor '{adapter_name}'. {str(e)}"
+            if isinstance(x2text.x2text_instance, LLMWhispererV2):
+                msg += (
+                    " Ensure the LLMWhisperer V2 adapter URL is reachable from this "
+                    "service (prompt-service), the API key is set, and the service "
+                    "returns result_text."
+                )
+                logger.error(
+                    "Extraction failed for LLMWhisperer V2 (indexing may be affected): %s",
+                    e,
+                    exc_info=True,
+                )
             code = e.status_code if e.status_code != -1 else 500
             raise ExtractionError(msg, code=code) from e
         except (FileNotFoundError, OSError) as e:

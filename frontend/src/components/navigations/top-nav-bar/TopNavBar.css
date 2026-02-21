@@ -109,6 +109,43 @@
 .platform-switch-container {
   display: flex;
   align-items: center;
+  gap: 8px;
+}
+
+.top-nav-mobile-menu-btn {
+  color: rgba(255, 255, 255, 0.85) !important;
+  font-size: 18px;
+  padding: 4px 8px;
+  flex-shrink: 0;
+}
+
+.top-nav-mobile-menu-btn:hover {
+  color: #fff !important;
+}
+
+/* Mobile: compact top bar, allow wrapping */
+@media (max-width: 768px) {
+  .topNav {
+    padding-inline-start: 12px;
+    padding-inline-end: 12px;
+    flex-wrap: wrap;
+  }
+
+  .topbar-logo-parseris .ant-typography {
+    font-size: 1rem !important;
+  }
+
+  .topbar-logo-parseris-subtitle {
+    display: none;
+  }
+
+  .top-nav-alert-col .ant-alert {
+    font-size: 12px;
+  }
+
+  .top-nav-alert-col .ant-alert-message {
+    margin-right: 0;
+  }
 }
 
 .user-profile-menu > .ant-dropdown-menu-item {

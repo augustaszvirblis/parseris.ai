@@ -23,3 +23,32 @@
   position: fixed;
   z-index: 1000;
 }
+
+/* Mobile drawer: sidebar fills drawer and has no fixed width */
+.page-layout-mobile-drawer .ant-drawer-body {
+  padding: 0;
+  overflow: auto;
+}
+
+.page-layout-mobile-drawer .side-bar.ant-layout-sider,
+.page-layout-mobile-drawer .side-bar {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 100% !important;
+  min-height: 100%;
+}
+
+@media (max-width: 768px) {
+  .landingPage .ant-layout,
+  .landingPage .ant-layout-content {
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .landingPage .ant-layout-content {
+    padding-left: 12px;
+    padding-right: 12px;
+    overflow-x: auto;
+    overflow-y: auto;
+  }
+}

@@ -16,6 +16,7 @@ import {
   FileProtectOutlined,
   LikeOutlined,
   LoginOutlined,
+  MenuOutlined,
   SettingOutlined,
 } from "@ant-design/icons";
 import { useEffect, useState, useMemo, useCallback } from "react";
@@ -153,7 +154,12 @@ try {
   // Plugin unavailable.
 }
 
-function TopNavBar({ isSimpleLayout, topNavBarOptions }) {
+function TopNavBar({
+  isSimpleLayout,
+  topNavBarOptions,
+  showMobileMenuButton = false,
+  onOpenMobileMenu,
+}) {
   const navigate = useNavigate();
   const { sessionDetails } = useSessionStore();
   const { orgName, allOrganization, orgId, isLoggedIn } = sessionDetails;
@@ -450,7 +456,21 @@ function TopNavBar({ isSimpleLayout, topNavBarOptions }) {
 
   return (
     <Row align="middle" className="topNav">
-      <Col span={6} className="platform-switch-container">
+      <Col
+        xs={{ span: 16 }}
+        sm={{ span: 10 }}
+        md={{ span: 6 }}
+        className="platform-switch-container"
+      >
+        {showMobileMenuButton && (
+          <Button
+            type="text"
+            icon={<MenuOutlined />}
+            onClick={onOpenMobileMenu}
+            className="top-nav-mobile-menu-btn"
+            aria-label="Open menu"
+          />
+        )}
         {isUnstract ? (
           <CustomLogo
             className="topbar-logo cursor-pointer"
@@ -473,9 +493,14 @@ function TopNavBar({ isSimpleLayout, topNavBarOptions }) {
       </Col>
 
       {isSimpleLayout ? (
-        <Col span={14} />
+        <Col xs={{ span: 0 }} md={{ span: 14 }} />
       ) : (
-        <Col span={14} className="top-nav-alert-col">
+        <Col
+          xs={{ span: 0 }}
+          sm={{ span: 0 }}
+          md={{ span: 14 }}
+          className="top-nav-alert-col"
+        >
           {isUnstract && showOnboardBanner && (
             <Alert
               type="error"
@@ -495,7 +520,7 @@ function TopNavBar({ isSimpleLayout, topNavBarOptions }) {
         </Col>
       )}
 
-      <Col span={4}>
+      <Col xs={{ span: 8 }} sm={{ span: 14 }} md={{ span: 4 }}>
         {!config.logoText && (
           <Row justify="end" align="middle">
             <Space>
@@ -534,6 +559,8 @@ function TopNavBar({ isSimpleLayout, topNavBarOptions }) {
 TopNavBar.propTypes = {
   isSimpleLayout: PropTypes.bool,
   topNavBarOptions: PropTypes.node,
+  showMobileMenuButton: PropTypes.bool,
+  onOpenMobileMenu: PropTypes.func,
 };
 
 CustomLogo.propTypes = {

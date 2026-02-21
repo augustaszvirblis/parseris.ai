@@ -159,10 +159,6 @@ class AuthenticationService:
             return self._render_login_page_with_signup_error(request, first_error)
         username = serializer.validated_data["username"].strip()
         password = serializer.validated_data["password"]
-        if User.objects.filter(username=username).exists():
-            return self._render_login_page_with_signup_error(
-                request, ErrorMessage.USERNAME_TAKEN
-            )
         user_id = str(uuid.uuid4())
         user = User(
             username=username,
@@ -402,7 +398,14 @@ class AuthenticationService:
         Returns:
             User: The created or existing mock user
         """
-        user, created = User.objects.get_or_create(username=DefaultOrg.MOCK_USER)
+        user, created = User.objects.get_or_create(
+            user_id=DefaultOrg.MOCK_USER_ID,
+            defaults={
+                "username": DefaultOrg.MOCK_USER,
+                "email": DefaultOrg.MOCK_USER_EMAIL,
+                "password": make_password(DefaultOrg.MOCK_USER_PASSWORD),
+            },
+        )
         if created:
             logger.info(f"Created new user with username {DefaultOrg.MOCK_USER}")
         return user

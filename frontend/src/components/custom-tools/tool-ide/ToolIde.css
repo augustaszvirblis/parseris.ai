@@ -108,3 +108,34 @@
   overflow-y: hidden;
   width: 100vw;
 }
+
+/* Mobile: stack prompts and document vertically */
+@media (max-width: 768px) {
+  .tool-ide-body,
+  .tool-ide-body-2 {
+    overflow-y: auto;
+    min-height: 0;
+  }
+
+  .tool-ide-main {
+    flex-direction: column;
+    overflow-y: auto;
+    min-height: 400px;
+  }
+
+  .tool-ide-col {
+    flex: 0 0 auto;
+    min-height: 280px;
+    max-height: 50vh;
+  }
+
+  .tool-ide-col .tool-ide-prompts,
+  .tool-ide-col .tool-ide-pdf {
+    min-height: 240px;
+  }
+
+  .tool-ide-prompts > div,
+  .tool-ide-pdf > div {
+    min-height: 200px;
+  }
+}

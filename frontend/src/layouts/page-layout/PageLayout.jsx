@@ -1,5 +1,5 @@
 import { LeftOutlined, RightOutlined } from "@ant-design/icons";
-import { Button, Layout } from "antd";
+import { Button, Drawer, Layout } from "antd";
 import { useEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import PropTypes from "prop-types";
@@ -8,6 +8,20 @@ import "./PageLayout.css";
 import SideNavBar from "../../components/navigations/side-nav-bar/SideNavBar.jsx";
 import { TopNavBar } from "../../components/navigations/top-nav-bar/TopNavBar.jsx";
 import { DisplayLogsAndNotifications } from "../../components/logs-and-notifications/DisplayLogsAndNotifications.jsx";
+
+const MOBILE_BREAKPOINT = 768;
+
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`);
+    const update = () => setIsMobile(mql.matches);
+    update();
+    mql.addEventListener("change", update);
+    return () => mql.removeEventListener("change", update);
+  }, []);
+  return isMobile;
+}
 
 /**
  * True when current route is Prompt Studio (tools or agentic-prompt-studio).
@@ -27,23 +41,55 @@ function PageLayout({
   hideSidebar = false,
 }) {
   const location = useLocation();
+  const isMobile = useIsMobile();
   const promptStudioOnly =
     hideSidebar || isPromptStudioRoute(location.pathname ?? "");
   const initialCollapsedValue =
     JSON.parse(localStorage.getItem("collapsed")) || false;
   const [collapsed, setCollapsed] = useState(initialCollapsedValue);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   useEffect(() => {
     localStorage.setItem("collapsed", JSON.stringify(collapsed));
   }, [collapsed]);
+
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
+
+  const showSidebar = !promptStudioOnly;
+  const showMobileMenuButton = showSidebar && isMobile;
+
   return (
     <div className="landingPage">
-      <TopNavBar topNavBarOptions={topNavBarOptions} />
+      <TopNavBar
+        topNavBarOptions={topNavBarOptions}
+        showMobileMenuButton={showMobileMenuButton}
+        onOpenMobileMenu={() => setMobileMenuOpen(true)}
+      />
+      {showMobileMenuButton && (
+        <Drawer
+          title="Menu"
+          placement="left"
+          open={mobileMenuOpen}
+          onClose={() => setMobileMenuOpen(false)}
+          bodyStyle={{ padding: 0 }}
+          width={280}
+          className="page-layout-mobile-drawer"
+        >
+          <SideNavBar
+            collapsed={false}
+            onNavigate={() => setMobileMenuOpen(false)}
+            {...sideBarOptions}
+          />
+        </Drawer>
+      )}
       <Layout>
-        {!promptStudioOnly && (
+        {showSidebar && !isMobile && (
           <SideNavBar collapsed={collapsed} {...sideBarOptions} />
         )}
         <Layout>
-          {!promptStudioOnly && (
+          {showSidebar && !isMobile && (
             <Button
               shape="circle"
               size="small"
@@ -53,8 +99,8 @@ function PageLayout({
             />
           )}
           <Outlet />
-          {!promptStudioOnly && <div className="height-40" />}
-          {showLogsAndNotifications && !promptStudioOnly && (
+          {showSidebar && <div className="height-40" />}
+          {showLogsAndNotifications && showSidebar && (
             <DisplayLogsAndNotifications />
           )}
         </Layout>

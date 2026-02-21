@@ -1,6 +1,7 @@
 import uuid
 
 from django.contrib.auth.models import AbstractUser, Group, Permission
+from django.contrib.auth.validators import UnicodeUsernameValidator
 from django.db import models
 
 from backend.constants import FieldLengthConstants as FieldLength
@@ -49,11 +50,18 @@ class Organization(models.Model):
 class User(AbstractUser):
     """Stores data related to a user belonging to any organization.
 
-    Every org, user is assumed to be unique.
+    Login uses user_id (unique). Username is a display name and can be
+    shared by multiple users (non-unique).
     """
 
-    # Third Party Authentication User ID
-    user_id = models.CharField()
+    # Unique identifier used for authentication (USERNAME_FIELD)
+    user_id = models.CharField(max_length=255, unique=True)
+    # Display name; multiple users can have the same username
+    username = models.CharField(
+        max_length=150,
+        unique=False,
+        validators=[UnicodeUsernameValidator()],
+    )
     project_storage_created = models.BooleanField(default=False)
     created_by = models.ForeignKey(
         "User",
@@ -89,6 +97,9 @@ class User(AbstractUser):
     )
 
     auth_provider = models.CharField(max_length=64, default="")
+
+    USERNAME_FIELD = "user_id"
+    REQUIRED_FIELDS = ["username"]
 
     def __str__(self):  # type: ignore
         return f"User({self.id}, email: {self.email}, userId: {self.user_id})"

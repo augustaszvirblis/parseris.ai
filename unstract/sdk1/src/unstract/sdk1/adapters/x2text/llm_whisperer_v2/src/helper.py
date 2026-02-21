@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -20,6 +21,7 @@ from unstract.sdk1.adapters.x2text.llm_whisperer_v2.src.constants import (
     WhispererConfig,
     WhispererDefaults,
     WhispererHeader,
+    WhispererRetry,
     WhisperStatus,
 )
 from unstract.sdk1.adapters.x2text.llm_whisperer_v2.src.dto import (
@@ -57,19 +59,20 @@ class LLMWhispererHelper:
             response = requests.get(url=url, headers=headers)
             response.raise_for_status()
         except ConnectionError as e:
-            logger.error(f"Adapter error: {e}")
+            logger.error("LLMWhisperer V2 test_connection failed: %s", e)
             raise ExtractorError(
-                "Unable to connect to LLMWhisperer service, please check the URL",
+                "Unable to connect to LLMWhisperer service. "
+                "Check the adapter URL (must be reachable from this service) and API key.",
                 actual_err=e,
                 status_code=503,
             ) from e
         except Timeout as e:
-            msg = "Request to LLMWhisperer has timed out"
-            logger.error(f"{msg}: {e}")
+            msg = "LLMWhisperer test connection timed out. Check URL and service availability."
+            logger.error("%s: %s", msg, e)
             raise ExtractorError(msg, actual_err=e, status_code=504) from e
         except HTTPError as e:
-            logger.error(f"Adapter error: {e}")
-            default_err = "Error while calling the LLMWhisperer service"
+            logger.error("LLMWhisperer V2 test_connection HTTP error: %s", e)
+            default_err = "Error calling LLMWhisperer service. Check URL and API key."
             msg = AdapterUtils.get_msg_from_request_exc(
                 err=e, message_key="message", default_err=default_err
             )
@@ -137,20 +140,27 @@ class LLMWhispererHelper:
                 return response
 
         except ConnectionError as e:
-            logger.error(f"Adapter error: {e}")
+            logger.error("LLMWhisperer V2 connection error: %s", e)
             raise ExtractorError(
-                "Unable to connect to LLMWhisperer service, please check the URL",
+                "Unable to connect to LLMWhisperer service. "
+                "Ensure the adapter URL is reachable from this service (e.g. prompt-service) and the API key is set.",
                 actual_err=e,
                 status_code=503,
             ) from e
         except Timeout as e:
-            msg = "Request to LLMWhisperer has timed out"
-            logger.error(f"{msg}: {e}")
+            msg = (
+                "Request to LLMWhisperer has timed out. "
+                "Ensure the service is up and consider increasing wait_timeout."
+            )
+            logger.error("%s: %s", msg, e)
             raise ExtractorError(msg, actual_err=e, status_code=504) from e
         except LLMWhispererClientException as e:
-            logger.error(f"LLM Whisperer error: {e}")
+            logger.error("LLM Whisperer error: %s", e)
             raise ExtractorError(
-                message=f"LLM Whisperer error: {e}",
+                message=(
+                    f"LLM Whisperer error: {e}. "
+                    "Check adapter URL and API key (unstract_key)."
+                ),
                 actual_err=e,
                 status_code=500,
             ) from e
@@ -247,27 +257,59 @@ class LLMWhispererHelper:
         params = LLMWhispererHelper.get_whisperer_params(
             config=config, extra_params=extra_params
         )
-        response: requests.Response
-        try:
-            input_file_data = BytesIO(fs.read(path=input_file_path, mode="rb"))
-            enable_highlight = extra_params.enable_highlight
-            response = LLMWhispererHelper.make_request(
-                config=config,
-                params=params,
-                data=input_file_data,
-            )
-            if enable_highlight:
-                whisper_hash = response.get(X2TextConstants.WHISPER_HASH_V2, "")
-                highlight_data = LLMWhispererHelper.make_highlight_data_request(
-                    config,
-                    whisper_hash,
-                    enable_highlight,
+        last_error = None
+        for attempt in range(1, WhispererRetry.MAX_ATTEMPTS + 1):
+            try:
+                input_file_data = BytesIO(fs.read(path=input_file_path, mode="rb"))
+                enable_highlight = extra_params.enable_highlight
+                response = LLMWhispererHelper.make_request(
+                    config=config,
+                    params=params,
+                    data=input_file_data,
                 )
-                response["line_metadata"] = highlight_data
-        except OSError as e:
-            logger.error(f"OS error while reading {input_file_path}: {e}")
-            raise ExtractorError(str(e)) from e
-        return response
+                if enable_highlight:
+                    whisper_hash = response.get(X2TextConstants.WHISPER_HASH_V2, "")
+                    highlight_data = LLMWhispererHelper.make_highlight_data_request(
+                        config,
+                        whisper_hash,
+                        enable_highlight,
+                    )
+                    response["line_metadata"] = highlight_data
+                return response
+            except OSError as e:
+                logger.error("OS error while reading %s: %s", input_file_path, e)
+                raise ExtractorError(str(e)) from e
+            except (ConnectionError, Timeout) as e:
+                last_error = e
+                if attempt < WhispererRetry.MAX_ATTEMPTS:
+                    delay = WhispererRetry.BACKOFF_SEC * attempt
+                    logger.warning(
+                        "LLMWhisperer V2 attempt %s/%s failed (%s), retrying in %ss",
+                        attempt,
+                        WhispererRetry.MAX_ATTEMPTS,
+                        e,
+                        delay,
+                    )
+                    time.sleep(delay)
+                else:
+                    if isinstance(e, ConnectionError):
+                        raise ExtractorError(
+                            "Unable to connect to LLMWhisperer after %s attempts. "
+                            "Ensure the adapter URL is reachable from this service and the API key is set."
+                            % WhispererRetry.MAX_ATTEMPTS,
+                            actual_err=e,
+                            status_code=503,
+                        ) from e
+                    raise ExtractorError(
+                        "LLMWhisperer request timed out after %s attempts. "
+                        "Ensure the service is up and consider increasing wait_timeout."
+                        % WhispererRetry.MAX_ATTEMPTS,
+                        actual_err=e,
+                        status_code=504,
+                    ) from e
+        if last_error is not None:
+            raise last_error
+        return None  # unreachable
 
     @staticmethod
     def make_highlight_data_request(
@@ -309,9 +351,22 @@ class LLMWhispererHelper:
         if fs is None:
             fs = FileStorage(provider=FileStorageProvider.LOCAL)
         if not response:
-            raise ExtractorError("Couldn't extract text from file", status_code=500)
-        output_json = {}
+            raise ExtractorError(
+                "LLMWhisperer V2 returned an empty response. "
+                "Ensure the service is up and returning the expected format.",
+                status_code=500,
+            )
         output_json = response
+        if "result_text" not in output_json:
+            logger.error(
+                "LLMWhisperer V2 response missing 'result_text'. Keys: %s",
+                list(output_json.keys()),
+            )
+            raise ExtractorError(
+                "LLMWhisperer V2 did not return 'result_text'. "
+                "Ensure the service is running and returning the expected response format so indexing can succeed.",
+                status_code=502,
+            )
         if output_file_path:
             LLMWhispererHelper.write_output_to_file(
                 output_json=output_json,
