@@ -10,6 +10,7 @@ import { useSessionStore } from "./store/session-store.js";
 import { GenericLoader } from "./components/generic-loader/GenericLoader";
 import PostHogPageviewTracker from "./PostHogPageviewTracker.js";
 import { PageTitle } from "./components/widgets/page-title/PageTitle.jsx";
+import { ParserisGitHubFooter } from "./components/parseris-github-footer/ParserisGitHubFooter.jsx";
 import CustomMarkdown from "./components/helpers/custom-markdown/CustomMarkdown.jsx";
 import { useSocketLogsStore } from "./store/socket-logs-store.js";
 
@@ -98,6 +99,7 @@ function App() {
           {GoogleTagManagerHelper && <GoogleTagManagerHelper />}
           {contextHolder}
           <Router />
+          <ParserisGitHubFooter />
         </BrowserRouter>
       </HelmetProvider>
     </ConfigProvider>

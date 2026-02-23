@@ -1,0 +1,24 @@
+/* Fixed at bottom of viewport so it's visible on every page and route */
+.parseris-github-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 999;
+  padding: 10px 16px;
+  text-align: center;
+  background: var(--ant-colorBgContainer);
+  border-top: 1px solid var(--ant-colorBorderSecondary);
+  box-shadow: 0 -1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.parseris-github-footer__link {
+  font-size: 13px;
+  color: var(--ant-colorText);
+  text-decoration: none;
+}
+
+.parseris-github-footer__link:hover {
+  color: var(--ant-colorPrimary);
+  text-decoration: underline;
+}

@@ -88,7 +88,7 @@ function PageLayout({
         {showSidebar && !isMobile && (
           <SideNavBar collapsed={collapsed} {...sideBarOptions} />
         )}
-        <Layout>
+        <Layout className="page-layout-inner">
           {showSidebar && !isMobile && (
             <Button
               shape="circle"
@@ -98,11 +98,13 @@ function PageLayout({
               className="collapse_btn"
             />
           )}
-          <Outlet />
-          {showSidebar && <div className="height-40" />}
-          {showLogsAndNotifications && showSidebar && (
-            <DisplayLogsAndNotifications />
-          )}
+          <div className="page-layout-content">
+            <Outlet />
+            {showSidebar && <div className="height-40" />}
+            {showLogsAndNotifications && showSidebar && (
+              <DisplayLogsAndNotifications />
+            )}
+          </div>
         </Layout>
       </Layout>
     </div>

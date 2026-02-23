@@ -15,7 +15,7 @@ const config = {
   favicon:
     runtimeConfig.faviconPath ||
     process.env.REACT_APP_FAVICON_PATH ||
-    "/favicon.ico",
+    "/parseris-favicon.svg",
   logoUrl: runtimeConfig.logoUrl || process.env.REACT_APP_CUSTOM_LOGO_URL,
   logoText:
     runtimeConfig.logoText ||
@@ -24,6 +24,13 @@ const config = {
     window.location?.hostname?.includes("parseris")
       ? "Parseris.ai - Free PDF to Excel"
       : undefined),
+  metaDescription:
+    runtimeConfig.metaDescription ||
+    process.env.REACT_APP_META_DESCRIPTION ||
+    (typeof window !== "undefined" &&
+    window.location?.hostname?.includes("parseris")
+      ? "Parseris.ai – Free PDF to Excel. Convert PDF to Excel for free. Extract tables and data from PDFs into spreadsheets quickly and accurately."
+      : "Unstract – Unstructured to structured data"),
   appName:
     runtimeConfig.appName ||
     process.env.REACT_APP_APP_NAME ||

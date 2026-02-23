@@ -4,14 +4,26 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#000000" />
-    <meta name="description" content="Unstract" />
+    <meta name="description" content="Parseris.ai – Free PDF to Excel. Convert PDF to Excel for free. Extract tables and data from PDFs into spreadsheets quickly and accurately." />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+    <link rel="icon" href="%PUBLIC_URL%/parseris-favicon.svg" type="image/svg+xml" />
     <title>Unstract</title>
+    <script>
+      (function () {
+        if (
+          window.location &&
+          window.location.hostname &&
+          window.location.hostname.indexOf("parseris") !== -1
+        ) {
+          document.title = "Parseris.ai";
+        }
+      })();
+    </script>
     <!-- Runtime configuration - loaded before app starts -->
     <script src="/config/runtime-config.js"></script>
   </head>
   <body>
-    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <noscript>JavaScript is required to use this app.</noscript>
     <div id="root"></div>
   </body>
 </html>
