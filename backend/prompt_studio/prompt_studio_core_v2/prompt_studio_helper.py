@@ -44,7 +44,6 @@ from prompt_studio.prompt_studio_core_v2.exceptions import (
     ExtractionAPIError,
     IndexingAPIError,
     NoPromptsFound,
-    OperationNotSupported,
     PermissionError,
     ToolNotValid,
 )
@@ -78,14 +77,34 @@ logger = logging.getLogger(__name__)
 CHOICES_JSON = "/static/select_choices.json"
 ERROR_MSG = "User %s doesn't have access to adapter %s"
 
+# Model identifiers for vision-capable LLMs (used when preferring vision for default profile)
+VISION_CAPABLE_LLM_MODELS = (
+    "gpt-4o",
+    "gpt-4o-mini",
+    "gpt-4-turbo",
+    "gpt-4-vision-preview",
+)
+
 logger = logging.getLogger(__name__)
+
+
+def _is_vision_capable_llm(adapter: AdapterInstance) -> bool:
+    """Return True if the adapter is a vision-capable LLM (e.g. OpenAI gpt-4o)."""
+    if adapter.adapter_type != AdapterKeys.LLM:
+        return False
+    if adapter.adapter_id and adapter.adapter_id.startswith("openai|"):
+        return True
+    model = (adapter.adapter_metadata or {}).get("model") or ""
+    return model in VISION_CAPABLE_LLM_MODELS
 
 
 class PromptStudioHelper:
     """Helper class for Custom tool operations."""
 
     @staticmethod
-    def create_default_profile_manager(user: User, tool_id: uuid) -> None:
+    def create_default_profile_manager(
+        user: User, tool_id: uuid, prefer_vision_capable: bool = False
+    ) -> None:
         """Create a default profile manager for a given user and tool.
 
         Args:
@@ -93,6 +112,8 @@ class PromptStudioHelper:
             created.
             tool_id (uuid): The ID of the tool for which the default profile
             manager is created.
+            prefer_vision_capable: If True, prefer a vision-capable LLM (e.g.
+                OpenAI gpt-4o) for the default profile when available.
 
         Raises:
             AdapterInstance.DoesNotExist: If no suitable adapter instance is
@@ -125,15 +146,43 @@ class PromptStudioHelper:
                 similarity_top_k=3,
             )
 
+            llm_adapters = [
+                a for a in default_adapters if a.adapter_type == AdapterKeys.LLM
+            ]
+            if llm_adapters:
+                if prefer_vision_capable:
+                    vision_llm = next(
+                        (a for a in llm_adapters if _is_vision_capable_llm(a)),
+                        None,
+                    )
+                    profile_manager.llm = vision_llm if vision_llm else llm_adapters[0]
+                else:
+                    profile_manager.llm = llm_adapters[0]
+
             for adapter in default_adapters:
                 if adapter.adapter_type == AdapterKeys.LLM:
-                    profile_manager.llm = adapter
+                    pass  # already set above
                 elif adapter.adapter_type == AdapterKeys.VECTOR_DB:
                     profile_manager.vector_store = adapter
                 elif adapter.adapter_type == AdapterKeys.X2TEXT:
                     profile_manager.x2text = adapter
                 elif adapter.adapter_type == AdapterKeys.EMBEDDING:
                     profile_manager.embedding_model = adapter
+
+            if not profile_manager.x2text_id:
+                native = AdapterInstance.objects.filter(
+                    adapter_id="unstract|native_pdf",
+                    adapter_type=AdapterKeys.X2TEXT,
+                ).first()
+                if native:
+                    profile_manager.x2text = native
+
+            ocr_adapter = AdapterInstance.objects.filter(
+                adapter_type=AdapterKeys.OCR,
+                is_usable=True,
+            ).first()
+            if ocr_adapter:
+                profile_manager.ocr = ocr_adapter
 
             profile_manager.save()
 
@@ -575,14 +624,9 @@ class PromptStudioHelper:
     ):
         prompt_instance = PromptStudioHelper._fetch_prompt_from_id(id)
 
-        # Check if payload modifier plugin is available for table/record operations
-        payload_modifier_plugin = get_plugin("payload_modifier")
-        if (
-            prompt_instance.enforce_type == TSPKeys.TABLE
-            or prompt_instance.enforce_type == TSPKeys.RECORD
-        ) and not payload_modifier_plugin:
-            raise OperationNotSupported()
-
+        # Table/record prompts run with or without payload_modifier (e.g. vision
+        # table extraction in open-source). When the plugin is absent, output
+        # is not post-processed by the modifier; execution still proceeds.
         prompt_name = prompt_instance.prompt_key
         PromptStudioHelper._publish_log(
             {
@@ -862,6 +906,50 @@ class PromptStudioHelper:
                 "status": IndexingStatus.PENDING_STATUS.value,
                 "output": IndexingStatus.DOCUMENT_BEING_INDEXED.value,
             }
+        # Vision table extraction: document → OpenAI vision → table (no x2text)
+        # Force LLM-only extraction for Parseris: use vision when tool is Parseris or flag is set,
+        # and when prompt is table/record or Parseris default "extracted_data" (so we always use
+        # vision for the main SPS flow regardless of DB state).
+        is_parseris = getattr(tool, "tool_name", None) == "Parseris"
+        prompt_is_table_or_record = (
+            prompt.enforce_type == TSPKeys.TABLE or prompt.enforce_type == TSPKeys.RECORD
+        )
+        parseris_default_extraction = (
+            is_parseris and getattr(prompt, "prompt_key", None) == "extracted_data"
+        )
+        use_vision = (
+            getattr(tool, "use_vision_table_extraction", False) or is_parseris
+        ) and (prompt_is_table_or_record or parseris_default_extraction)
+        # When forcing vision for Parseris default prompt that is still "json", send type=table
+        force_table_type = parseris_default_extraction and not prompt_is_table_or_record
+
+        if use_vision:
+            logger.info(
+                "Using vision table extraction (no x2text); sending original document path"
+            )
+            logger.info(
+                "EXTRACTION_MODE=LLM_VISION: PDF extraction is performed by the vision LLM "
+                "(no pdfplumber/x2text). Document pages are sent as images to the LLM."
+            )
+            return PromptStudioHelper._fetch_response_vision_table(
+                tool=tool,
+                prompt=prompt,
+                profile_manager=profile_manager,
+                file_path=file_path,
+                doc_name=doc_name,
+                org_id=org_id,
+                user_id=user_id,
+                document_id=document_id,
+                run_id=run_id,
+                challenge_llm=challenge_llm,
+                monitor_llm=monitor_llm,
+                util=util,
+                vector_db=vector_db,
+                embedding_model=embedding_model,
+                llm=llm,
+                x2text=x2text,
+                effective_type=TSPKeys.TABLE if force_table_type else None,
+            )
         logger.info(f"Extracting text from {file_path} for {doc_id}")
         extracted_text = PromptStudioHelper.dynamic_extractor(
             profile_manager=profile_manager,
@@ -1012,6 +1100,108 @@ class PromptStudioHelper:
                 f"'{prompt.prompt_key}' with '{doc_name}'. {msg}",
                 status_code=int(e.status_code or 500),
             )
+
+    @staticmethod
+    def _fetch_response_vision_table(
+        tool: CustomTool,
+        prompt: ToolStudioPrompt,
+        profile_manager: ProfileManager,
+        file_path: str,
+        doc_name: str,
+        org_id: str,
+        user_id: str,
+        document_id: str,
+        run_id: str,
+        challenge_llm: str,
+        monitor_llm: str,
+        util: PromptIdeBaseTool,
+        vector_db: str,
+        embedding_model: str,
+        llm: str,
+        x2text: str,
+        effective_type: str | None = None,
+    ) -> Any:
+        """Build payload for vision table extraction (no x2text) and call answer_prompt."""
+        tool_id = str(tool.tool_id)
+        output = {}
+        output[TSPKeys.PROMPT] = prompt.prompt
+        output[TSPKeys.ACTIVE] = prompt.active
+        output[TSPKeys.REQUIRED] = prompt.required
+        output[TSPKeys.CHUNK_SIZE] = profile_manager.chunk_size
+        output[TSPKeys.VECTOR_DB] = vector_db
+        output[TSPKeys.EMBEDDING] = embedding_model
+        output[TSPKeys.CHUNK_OVERLAP] = profile_manager.chunk_overlap
+        output[TSPKeys.LLM] = llm
+        output[TSPKeys.TYPE] = (
+            effective_type if effective_type is not None else prompt.enforce_type
+        )
+        output[TSPKeys.NAME] = prompt.prompt_key
+        output[TSPKeys.RETRIEVAL_STRATEGY] = profile_manager.retrieval_strategy
+        output[TSPKeys.SIMILARITY_TOP_K] = profile_manager.similarity_top_k
+        output[TSPKeys.SECTION] = profile_manager.section
+        output[TSPKeys.X2TEXT_ADAPTER] = x2text
+        output[TSPKeys.ENABLE_POSTPROCESSING_WEBHOOK] = False
+        output[TSPKeys.EVAL_SETTINGS] = {
+            TSPKeys.EVAL_SETTINGS_EVALUATE: prompt.evaluate,
+            TSPKeys.EVAL_SETTINGS_MONITOR_LLM: [monitor_llm],
+            TSPKeys.EVAL_SETTINGS_EXCLUDE_FAILED: tool.exclude_failed,
+        }
+        grammar_list = []
+        if tool.prompt_grammer:
+            for word, synonyms in tool.prompt_grammer.items():
+                grammar_list.append({TSPKeys.WORD: word, TSPKeys.SYNONYMS: synonyms})
+        output = PromptStudioHelper.fetch_table_settings_if_enabled(
+            doc_name, prompt, org_id, user_id, tool_id, output
+        )
+        variable_map = PromptStudioVariableService.frame_variable_replacement_map(
+            doc_id=document_id, prompt_object=prompt
+        )
+        if variable_map:
+            output[TSPKeys.VARIABLE_MAP] = variable_map
+        outputs = [output]
+        tool_settings = {
+            TSPKeys.ENABLE_CHALLENGE: tool.enable_challenge,
+            TSPKeys.CHALLENGE_LLM: challenge_llm,
+            TSPKeys.SINGLE_PASS_EXTRACTION_MODE: tool.single_pass_extraction_mode,
+            TSPKeys.SUMMARIZE_AS_SOURCE: tool.summarize_as_source,
+            TSPKeys.PREAMBLE: tool.preamble,
+            TSPKeys.POSTAMBLE: tool.postamble,
+            TSPKeys.GRAMMAR: grammar_list,
+            TSPKeys.ENABLE_HIGHLIGHT: tool.enable_highlight,
+            TSPKeys.ENABLE_WORD_CONFIDENCE: tool.enable_word_confidence,
+            TSPKeys.PLATFORM_POSTAMBLE: getattr(
+                settings, TSPKeys.PLATFORM_POSTAMBLE.upper(), ""
+            ),
+            TSPKeys.WORD_CONFIDENCE_POSTAMBLE: getattr(
+                settings, TSPKeys.WORD_CONFIDENCE_POSTAMBLE.upper(), ""
+            ),
+            TSPKeys.USE_VISION_TABLE_EXTRACTION: True,
+        }
+        fs_instance = EnvHelper.get_storage(
+            storage_type=StorageType.PERMANENT,
+            env_name=FileStorageKeys.PERMANENT_REMOTE_STORAGE,
+        )
+        file_hash = fs_instance.get_hash_from_file(path=file_path)
+        payload = {
+            TSPKeys.TOOL_SETTINGS: tool_settings,
+            TSPKeys.OUTPUTS: outputs,
+            TSPKeys.TOOL_ID: tool_id,
+            TSPKeys.RUN_ID: run_id,
+            TSPKeys.FILE_NAME: doc_name,
+            TSPKeys.FILE_HASH: file_hash,
+            TSPKeys.FILE_PATH: file_path,
+            Common.LOG_EVENTS_ID: StateStore.get(Common.LOG_EVENTS_ID),
+            TSPKeys.EXECUTION_SOURCE: ExecutionSource.IDE.value,
+            TSPKeys.CUSTOM_DATA: tool.custom_data,
+        }
+        responder = PromptTool(
+            tool=util,
+            prompt_host=settings.PROMPT_HOST,
+            prompt_port=settings.PROMPT_PORT,
+            request_id=StateStore.get(Common.REQUEST_ID),
+        )
+        params = {TSPKeys.INCLUDE_METADATA: True}
+        return responder.answer_prompt(payload=payload, params=params)
 
     @staticmethod
     def fetch_table_settings_if_enabled(
@@ -1260,6 +1450,10 @@ class PromptStudioHelper:
             settings, TSPKeys.WORD_CONFIDENCE_POSTAMBLE.upper(), ""
         )
         tool_settings[TSPKeys.SUMMARIZE_AS_SOURCE] = tool.summarize_as_source
+        ocr_id = ""
+        if default_profile.ocr_id:
+            ocr_id = str(default_profile.ocr.id)
+        tool_settings[IKeys.OCR_INSTANCE_ID] = ocr_id
         for prompt in prompts:
             if not prompt.prompt:
                 raise EmptyPromptError()
@@ -1355,8 +1549,13 @@ class PromptStudioHelper:
                     "Continuing extraction.."
                 )
                 extracted_text = None
+        ocr_id = ""
+        if profile_manager.ocr_id:
+            ocr_id = str(profile_manager.ocr.id)
+
         payload = {
             IKeys.X2TEXT_INSTANCE_ID: x2text,
+            IKeys.OCR_INSTANCE_ID: ocr_id,
             IKeys.FILE_PATH: file_path,
             IKeys.ENABLE_HIGHLIGHT: enable_highlight,
             IKeys.USAGE_KWARGS: usage_kwargs.copy(),
@@ -1507,6 +1706,9 @@ class PromptStudioHelper:
             "enable_highlight": tool.enable_highlight,
             "exclude_failed": tool.exclude_failed,
             "single_pass_extraction_mode": tool.single_pass_extraction_mode,
+            "use_vision_table_extraction": getattr(
+                tool, "use_vision_table_extraction", False
+            ),
             "prompt_grammer": tool.prompt_grammer,
         }
 
@@ -1731,6 +1933,9 @@ class PromptStudioHelper:
             single_pass_extraction_mode=tool_settings.get(
                 "single_pass_extraction_mode",
                 DefaultValues.DEFAULT_SINGLE_PASS_EXTRACTION_MODE,
+            ),
+            use_vision_table_extraction=tool_settings.get(
+                "use_vision_table_extraction", False
             ),
             prompt_grammer=tool_settings.get("prompt_grammer"),
             created_by=user,

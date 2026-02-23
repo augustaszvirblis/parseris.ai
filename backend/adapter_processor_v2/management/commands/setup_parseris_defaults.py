@@ -28,7 +28,10 @@ class Command(BaseCommand):
             if "GPT-4o" in name: found_map['llm_id'] = aid
             if "Embeddings" in name: found_map['emb_id'] = aid
             if "Pinecone" in name: found_map['vec_id'] = aid
-            if "Whisperer" in name: found_map['txt_id'] = aid
+            if "Native PDF" in name:
+                found_map['txt_id'] = aid
+            elif "Whisperer" in name and 'txt_id' not in found_map:
+                found_map['txt_id'] = aid
 
         if len(found_map) < 4:
             self.stdout.write(self.style.ERROR(f"✗ Only found {len(found_map)}/4 adapters."))
@@ -44,11 +47,35 @@ class Command(BaseCommand):
             CustomTool = apps.get_model('prompt_studio_core', 'CustomTool')
             AdapterInstance = apps.get_model('adapter_processor_v2', 'AdapterInstance')
 
-        # 3. Create Profile
+        # 3. Get or create project (vision table extraction = LLM-based PDF extraction)
         tool = CustomTool.objects.filter(organization_id=org_id).first()
         if not tool:
             self.stdout.write("Creating Tool...")
-            tool = CustomTool.objects.create(tool_name="Parseris", organization_id=org_id, created_by=user, modified_by=user)
+            tool, _ = CustomTool.objects.get_or_create(
+                tool_name="Parseris",
+                organization_id=org_id,
+                defaults={
+                    "created_by": user,
+                    "modified_by": user,
+                    "use_vision_table_extraction": True,
+                },
+            )
+        if not getattr(tool, "use_vision_table_extraction", False):
+            tool.use_vision_table_extraction = True
+            tool.save(update_fields=["use_vision_table_extraction"])
+            self.stdout.write("Enabled use_vision_table_extraction on Parseris tool.")
+
+        # Ensure default prompt uses table type so vision extraction path is used
+        ToolStudioPrompt = apps.get_model("prompt_studio_v2", "ToolStudioPrompt")
+        first_prompt = (
+            ToolStudioPrompt.objects.filter(tool_id=tool, prompt_type="PROMPT", active=True)
+            .order_by("sequence_number")
+            .first()
+        )
+        if first_prompt and first_prompt.enforce_type != "table":
+            first_prompt.enforce_type = "table"
+            first_prompt.save(update_fields=["enforce_type"])
+            self.stdout.write("Set default prompt enforce_type to 'table' for vision extraction.")
 
         ProfileManager.objects.filter(prompt_studio_tool=tool).delete()
         ProfileManager.objects.create(

@@ -56,6 +56,8 @@ function CustomToolsHelper() {
         updatedCusTool["details"] = data;
         updatedCusTool["singlePassExtractMode"] =
           data?.single_pass_extraction_mode;
+        updatedCusTool["useVisionTableExtraction"] =
+          data?.use_vision_table_extraction ?? false;
         selectedDocId = data?.output;
         updatedCusTool["isSimplePromptStudio"] = false;
         updatedCusTool["isChallengeEnabled"] = data?.enable_challenge;

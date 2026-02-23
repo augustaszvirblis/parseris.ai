@@ -20,6 +20,7 @@ const defaultState = {
   rawIndexStatus: [],
   summarizeIndexStatus: [],
   singlePassExtractMode: false,
+  useVisionTableExtraction: false,
   isMultiPassExtractLoading: false,
   isSinglePassExtractLoading: false,
   isSimplePromptStudio: false,

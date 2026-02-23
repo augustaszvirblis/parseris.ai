@@ -47,7 +47,9 @@ function AddLlmProfile({
   const [llmItems, setLlmItems] = useState([]);
   const [vectorDbItems, setVectorDbItems] = useState([]);
   const [embeddingItems, setEmbeddingItems] = useState([]);
-  const [x2TextItems, setX2TextItems] = useState([]);
+  const [autoX2TextId, setAutoX2TextId] = useState(null);
+  const [ocrItems, setOcrItems] = useState([]);
+  const [autoOcrId, setAutoOcrId] = useState(null);
   const [activeKey, setActiveKey] = useState(false);
   const [loading, setLoading] = useState(false);
   const [modalTitle, setModalTitle] = useState("");
@@ -106,7 +108,6 @@ function AddLlmProfile({
       vector_store: "",
       chunk_overlap: 0,
       embedding_model: "",
-      x2text: "",
       retrieval_strategy: "simple",
       similarity_top_k: 3,
       section: "Default",
@@ -140,8 +141,8 @@ function AddLlmProfile({
       (item) => item?.label === llmProfileDetails?.embedding_model
     );
 
-    const x2TextItem = x2TextItems.find(
-      (item) => item?.label === llmProfileDetails?.x2text
+    const ocrItem = ocrItems.find(
+      (item) => item?.label === llmProfileDetails?.ocr
     );
 
     setResetForm(true);
@@ -152,7 +153,7 @@ function AddLlmProfile({
       vector_store: vectorDbItem?.value || null,
       chunk_overlap: llmProfileDetails?.chunk_overlap,
       embedding_model: embeddingItem?.value || null,
-      x2text: x2TextItem?.value || null,
+      ocr: ocrItem?.value || null,
       retrieval_strategy: llmProfileDetails?.retrieval_strategy,
       similarity_top_k: llmProfileDetails?.similarity_top_k,
       section: llmProfileDetails?.section,
@@ -239,11 +240,11 @@ function AddLlmProfile({
               return newItems;
             });
           }
-          if (
-            item?.adapter_type === "X2TEXT" &&
-            item?.adapter_name === "Native PDF"
-          ) {
-            setX2TextItems((prev) => {
+          if (item?.adapter_type === "X2TEXT") {
+            setAutoX2TextId((prev) => prev || item?.id);
+          }
+          if (item?.adapter_type === "OCR") {
+            setOcrItems((prev) => {
               const newItems = [...prev];
               newItems.push({
                 value: item?.id,
@@ -251,6 +252,7 @@ function AddLlmProfile({
               });
               return newItems;
             });
+            setAutoOcrId((prev) => prev || item?.id);
           }
         });
         setAreAdaptersReady(true);
@@ -358,6 +360,14 @@ function AddLlmProfile({
       }
     }
 
+    const submitData = { ...formDetails };
+    if (autoX2TextId) {
+      submitData.x2text = autoX2TextId;
+    }
+    if (!submitData.ocr) {
+      submitData.ocr = autoOcrId || null;
+    }
+
     const requestOptions = {
       method,
       url,
@@ -365,7 +375,7 @@ function AddLlmProfile({
         "X-CSRFToken": sessionDetails?.csrfToken,
         "Content-Type": "application/json",
       },
-      data: formDetails,
+      data: submitData,
     };
 
     axiosPrivate(requestOptions)
@@ -631,23 +641,30 @@ function AddLlmProfile({
             >
               <Select options={embeddingItems} />
             </Form.Item>
-            <Form.Item
-              label="Text Extractor"
-              name="x2text"
-              rules={[
-                {
-                  required: true,
-                  message: "Please select the text extractor",
-                },
-                { validator: validateEmptyOrWhitespace },
-              ]}
-              validateStatus={
-                getBackendErrorDetail("x2text", backendErrors) ? "error" : ""
-              }
-              help={getBackendErrorDetail("x2text", backendErrors)}
-            >
-              <Select options={x2TextItems} />
-            </Form.Item>
+            {ocrItems.length > 0 && (
+              <Form.Item
+                label={
+                  <>
+                    OCR Adapter
+                    <Typography.Text type="secondary">
+                      {" "}
+                      (for scanned PDFs)
+                    </Typography.Text>
+                  </>
+                }
+                name="ocr"
+                validateStatus={
+                  getBackendErrorDetail("ocr", backendErrors) ? "error" : ""
+                }
+                help={getBackendErrorDetail("ocr", backendErrors)}
+              >
+                <Select
+                  options={ocrItems}
+                  allowClear
+                  placeholder="None (auto-detect disabled)"
+                />
+              </Form.Item>
+            )}
             <Collapse
               expandIcon={({ isActive }) => handleCaretIcon(isActive)}
               size="small"

@@ -51,9 +51,10 @@ def handle_service_exceptions(context: str) -> Callable[[Callable[P, R]], Callab
                 args[0].tool.stream_error_and_exit(msg, e)
                 return None
             except Exception as e:
-                # Handle any other unexpected exceptions
-                msg = f"Error while {context}. An unexpected error occurred"
-                logger.error(f"{msg}: {type(e).__name__}: {str(e)}", exc_info=True)
+                # Handle any other unexpected exceptions; include detail for debugging
+                detail = f"{type(e).__name__}: {str(e)}" if str(e) else type(e).__name__
+                msg = f"Error while {context}. An unexpected error occurred ({detail})"
+                logger.error("%s", msg, exc_info=True)
                 args[0].tool.stream_error_and_exit(msg, e)
                 return None
 

@@ -54,6 +54,14 @@ class ProfileManager(BaseModel):
         on_delete=models.PROTECT,
         related_name="profiles_x2text",
     )
+    ocr = models.ForeignKey(
+        AdapterInstance,
+        db_comment="Optional OCR adapter used as fallback when x2text returns empty text (scanned PDFs)",
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="profiles_ocr",
+    )
     chunk_size = models.IntegerField(null=True, blank=True)
     chunk_overlap = models.IntegerField(null=True, blank=True)
     reindex = models.BooleanField(default=False)

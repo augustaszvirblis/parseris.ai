@@ -31,6 +31,7 @@ def extract() -> Any:
         validate_request_payload(payload, REQUIRED_FIELDS)
 
         x2text_instance_id: str = payload.get(IKeys.X2TEXT_INSTANCE_ID, "")
+        ocr_instance_id: str = payload.get(IKeys.OCR_INSTANCE_ID, "")
         file_path: str = payload.get(IKeys.FILE_PATH, "")
         output_file_path: str | None = payload.get(IKeys.OUTPUT_FILE_PATH, "")
         enable_highlight: bool = payload.get(IKeys.ENABLE_HIGHLIGHT, False)
@@ -44,6 +45,7 @@ def extract() -> Any:
         extracted_text = ExtractionService.perform_extraction(
             file_path=file_path,
             x2text_instance_id=x2text_instance_id,
+            ocr_instance_id=ocr_instance_id,
             output_file_path=output_file_path,
             enable_highlight=enable_highlight,
             usage_kwargs=usage_kwargs,
@@ -55,6 +57,13 @@ def extract() -> Any:
             execution_run_data_folder=execution_run_data_folder,
         )
         response = {IKeys.EXTRACTED_TEXT: extracted_text}
+        extraction_hint = ExtractionService.get_extraction_hint(
+            file_path=file_path,
+            extracted_text=extracted_text or "",
+            ocr_instance_id=ocr_instance_id,
+        )
+        if extraction_hint:
+            response["extraction_hint"] = extraction_hint
         return response
     except ExtractionError:
         raise

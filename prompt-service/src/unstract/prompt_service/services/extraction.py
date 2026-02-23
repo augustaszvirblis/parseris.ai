@@ -11,12 +11,21 @@ from unstract.prompt_service.helpers.prompt_ide_base_tool import PromptServiceBa
 from unstract.prompt_service.utils.file_utils import FileUtils
 from unstract.sdk1.adapters.exceptions import AdapterError
 from unstract.sdk1.adapters.x2text.constants import X2TextConstants
-from unstract.sdk1.exceptions import X2TextError
+from unstract.sdk1.exceptions import SdkError, X2TextError
 from unstract.sdk1.adapters.x2text.llm_whisperer.src import LLMWhisperer
 from unstract.sdk1.adapters.x2text.llm_whisperer_v2.src import LLMWhispererV2
+from unstract.sdk1.ocr import OCR
 from unstract.sdk1.utils.common import log_elapsed
 from unstract.sdk1.utils.tool import ToolUtils
 from unstract.sdk1.x2txt import TextExtractionResult, X2Text
+
+MIN_EXTRACTED_TEXT_LENGTH = 50
+
+EXTRACTION_HINT_SCANNED_PDF = (
+    "No text was extracted from this PDF. If it is a scanned document (image-based), "
+    "add an OCR adapter in the tool profile and try again. Native PDF extraction only "
+    "works for PDFs with selectable text."
+)
 
 
 class ExtractionService:
@@ -27,6 +36,7 @@ class ExtractionService:
         file_path: str,
         run_id: str,
         platform_key: str,
+        ocr_instance_id: str = "",
         output_file_path: str | None = None,
         enable_highlight: bool = False,
         usage_kwargs: dict[Any, Any] = {},
@@ -78,6 +88,25 @@ class ExtractionService:
                     fs=fs,
                 )
             extracted_text = process_response.extracted_text
+
+            if (
+                ocr_instance_id
+                and len((extracted_text or "").strip()) < MIN_EXTRACTED_TEXT_LENGTH
+            ):
+                logger.info(
+                    "X2Text returned near-empty text (%d chars), "
+                    "falling back to OCR adapter %s",
+                    len((extracted_text or "").strip()),
+                    ocr_instance_id,
+                )
+                extracted_text = ExtractionService._ocr_fallback(
+                    util=util,
+                    ocr_instance_id=ocr_instance_id,
+                    file_path=file_path,
+                    output_file_path=output_file_path,
+                    fs=fs,
+                )
+
             return extracted_text
         except X2TextError as e:
             msg = str(e) if str(e) else "Text extractor error."
@@ -104,6 +133,54 @@ class ExtractionService:
         except Exception as e:
             msg = str(e) if str(e) else "Extraction failed."
             raise ExtractionError(msg, code=500) from e
+
+    @staticmethod
+    def _ocr_fallback(
+        util: PromptServiceBaseTool,
+        ocr_instance_id: str,
+        file_path: str,
+        output_file_path: str | None,
+        fs: Any,
+    ) -> str:
+        try:
+            ocr = OCR(tool=util, adapter_instance_id=ocr_instance_id)
+            ocr_text = ocr.process(
+                input_file_path=file_path,
+                output_file_path=output_file_path,
+                fs=fs,
+            )
+            logger.info(
+                "OCR fallback produced %d chars of text",
+                len((ocr_text or "").strip()),
+            )
+            return ocr_text
+        except (SdkError, AdapterError) as e:
+            logger.warning("OCR fallback failed: %s", e)
+            raise ExtractionError(
+                f"OCR fallback failed: {e}", code=500
+            ) from e
+        except Exception as e:
+            logger.warning("OCR fallback unexpected error: %s", e)
+            raise ExtractionError(
+                f"OCR fallback failed: {e}", code=500
+            ) from e
+
+    @staticmethod
+    def get_extraction_hint(
+        file_path: str,
+        extracted_text: str,
+        ocr_instance_id: str,
+    ) -> str | None:
+        """Return a user-facing hint when extraction is empty/short for a PDF.
+
+        Used to suggest enabling OCR for scanned PDFs.
+        """
+        if not file_path or not (file_path.lower().endswith(".pdf")):
+            return None
+        text_len = len((extracted_text or "").strip())
+        if text_len >= MIN_EXTRACTED_TEXT_LENGTH:
+            return None
+        return EXTRACTION_HINT_SCANNED_PDF
 
     @staticmethod
     def update_exec_metadata(

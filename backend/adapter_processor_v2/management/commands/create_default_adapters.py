@@ -4,7 +4,6 @@ Usage: python manage.py create_default_adapters
 """
 import os
 import json
-import sys
 from django.core.management.base import BaseCommand
 from django.conf import settings
 from cryptography.fernet import Fernet
@@ -26,12 +25,6 @@ class Command(BaseCommand):
         PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
         PINECONE_ENV = os.getenv("PINECONE_ENV", "us-east-1")
         PINECONE_INDEX = os.getenv("PINECONE_INDEX", "grand-beech")
-        LLMWHISPERER_KEY = os.getenv("LLMWHISPERER_KEY")
-        LLMWHISPERER_URL = os.getenv(
-            "LLMWHISPERER_URL",
-            "http://localhost:8080",  # default; use hostname reachable from prompt-service
-        )
-
         if not OPENAI_API_KEY:
             self.stderr.write(
                 "Error: OPENAI_API_KEY not found in environment variables."
@@ -99,27 +92,15 @@ class Command(BaseCommand):
                     'region': PINECONE_ENV,
                 }
             },
-        ]
-
-        # Add LLMWhisperer V2 only when URL and key are set (so indexing can reach it)
-        if LLMWHISPERER_URL and LLMWHISPERER_KEY:
-            adapters_config.append({
-                'name': 'LLMWhisperer V2',
-                'id': 'llmwhisperer|a5e6b8af-3e1f-4a80-b006-d017e8e67f93',
+            {
+                'name': 'Native PDF',
+                'id': 'unstract|native_pdf',
                 'type': AdapterTypes.X2TEXT.value,
                 'metadata': {
-                    'adapter_name': 'LLMWhisperer',
-                    'url': LLMWHISPERER_URL.rstrip('/'),
-                    'unstract_key': LLMWHISPERER_KEY,
-                }
-            })
-        else:
-            self.stdout.write(
-                self.style.WARNING(
-                    '  ⚠ Skipping LLMWhisperer V2: set LLMWHISPERER_URL and '
-                    'LLMWHISPERER_KEY for indexing with LLMWhisperer.'
-                )
-            )
+                    'adapter_name': 'Native PDF',
+                },
+            },
+        ]
         
         self.stdout.write('\nCreating / updating adapters...')
         created_count = 0

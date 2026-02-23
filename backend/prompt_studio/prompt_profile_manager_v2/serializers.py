@@ -35,4 +35,7 @@ class ProfileManagerSerializer(AuditSerializer):
             rep[ProfileManagerKeys.X2TEXT] = AdapterProcessor.get_adapter_instance_by_id(
                 x2text
             )
+        ocr = rep.get(ProfileManagerKeys.OCR)
+        if ocr:
+            rep[ProfileManagerKeys.OCR] = AdapterProcessor.get_adapter_instance_by_id(ocr)
         return rep

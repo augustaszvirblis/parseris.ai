@@ -55,10 +55,28 @@ def _get_defaults():
     return org, user
 
 
+def _normalize_tool_for_vision(tool):
+    """Ensure the tool is configured for LLM vision extraction (no x2text).
+    Idempotent: safe to call on every request so the user never has to manage projects.
+    """
+    update_fields = []
+    if getattr(tool, "tool_name", None) != "Parseris":
+        tool.tool_name = "Parseris"
+        update_fields.append("tool_name")
+    if not getattr(tool, "use_vision_table_extraction", False):
+        tool.use_vision_table_extraction = True
+        update_fields.append("use_vision_table_extraction")
+    if update_fields:
+        tool.save(update_fields=update_fields)
+
+
 def _get_or_create_project(user, org):
-    """Return an existing project or create one with a default profile."""
+    """Return the single internal project (create if none). Always vision-ready.
+    User never sees or chooses a project; they just upload and download.
+    """
     existing = CustomTool.objects.order_by("created_at").first()
     if existing:
+        _normalize_tool_for_vision(existing)
         _ensure_profile(existing, user)
         return existing
 
@@ -69,18 +87,21 @@ def _get_or_create_project(user, org):
         organization=org,
         created_by=user,
         modified_by=user,
+        use_vision_table_extraction=True,
     )
     _ensure_profile(tool, user)
     return tool
 
 
 def _ensure_profile(tool, user):
-    """Make sure the tool has a default LLM profile."""
+    """Make sure the tool has a default LLM profile (vision-capable when possible)."""
     try:
         ProfileManager.get_default_llm_profile(tool)
     except Exception:
         try:
-            PromptStudioHelper.create_default_profile_manager(user, tool.tool_id)
+            PromptStudioHelper.create_default_profile_manager(
+                user, tool.tool_id, prefer_vision_capable=True
+            )
         except Exception as e:
             logger.warning(
                 "Default profile creation failed for %s: %s", tool.tool_id, e
@@ -88,11 +109,23 @@ def _ensure_profile(tool, user):
 
 
 def _ensure_default_prompt(tool, user):
-    """Return the first prompt for the tool, creating one if needed."""
+    """Return the extraction prompt for the tool, creating one if needed.
+    Ensures existing prompts use enforce_type=table and prompt_key=extracted_data
+    so the vision path is always used (user never manages project settings).
+    """
     existing = ToolStudioPrompt.objects.filter(
         tool_id=tool, prompt_type="PROMPT", active=True
     ).first()
     if existing:
+        update_fields = []
+        if getattr(existing, "enforce_type", None) not in ("table", "record"):
+            existing.enforce_type = "table"
+            update_fields.append("enforce_type")
+        if getattr(existing, "prompt_key", None) != "extracted_data":
+            existing.prompt_key = "extracted_data"
+            update_fields.append("prompt_key")
+        if update_fields:
+            existing.save(update_fields=update_fields)
         return existing
 
     profile = None
@@ -105,7 +138,7 @@ def _ensure_default_prompt(tool, user):
         tool_id=tool,
         prompt_key="extracted_data",
         prompt=DEFAULT_EXTRACTION_PROMPT,
-        enforce_type="json",
+        enforce_type="table",  # Use vision table extraction (LLM-based PDF → table)
         prompt_type="PROMPT",
         sequence_number=1,
         active=True,
@@ -189,13 +222,16 @@ def sps_upload(request: HttpRequest) -> Response:
 @authentication_classes([])
 @permission_classes([AllowAny])
 def sps_extract(request: HttpRequest) -> Response:
-    """Run the extraction prompt and return JSON results."""
+    """Run the extraction prompt and return JSON results.
+    document_id is required (from upload response). tool_id is optional;
+    if omitted, the tool is resolved from the document so the user never deals with projects.
+    """
     tool_id = request.data.get("tool_id")
     document_id = request.data.get("document_id")
 
-    if not tool_id or not document_id:
+    if not document_id:
         return Response(
-            {"error": "tool_id and document_id are required."},
+            {"error": "document_id is required (returned from upload)."},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
@@ -209,13 +245,25 @@ def sps_extract(request: HttpRequest) -> Response:
     org_id = org.organization_id
     user_id = user.user_id
 
-    try:
-        tool = CustomTool.objects.get(pk=tool_id)
-    except CustomTool.DoesNotExist:
-        return Response(
-            {"error": "Project not found."}, status=status.HTTP_404_NOT_FOUND
-        )
+    if tool_id:
+        try:
+            tool = CustomTool.objects.get(pk=tool_id)
+        except CustomTool.DoesNotExist:
+            return Response(
+                {"error": "Project not found."}, status=status.HTTP_404_NOT_FOUND
+            )
+    else:
+        try:
+            document = DocumentManager.objects.get(document_id=document_id)
+            tool = document.tool
+            tool_id = str(tool.tool_id)
+        except DocumentManager.DoesNotExist:
+            return Response(
+                {"error": "Document not found."}, status=status.HTTP_404_NOT_FOUND
+            )
 
+    # Ensure this tool and its prompt use vision extraction (no project setup for user)
+    _normalize_tool_for_vision(tool)
     prompt = _ensure_default_prompt(tool, user)
     run_id = str(uuid.uuid4())
 

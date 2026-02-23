@@ -285,7 +285,10 @@ function DocumentParser({
       });
     } else {
       const ws = XLSX.utils.json_to_sheet([
-        { "No data": "Run prompts and ensure JSON/table output to export." },
+        {
+          "No data":
+            "Run prompts and ensure JSON/table output to export. If this is a scanned PDF, add an OCR adapter in the tool profile (LLM profile settings) and try again.",
+        },
       ]);
       XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
     }

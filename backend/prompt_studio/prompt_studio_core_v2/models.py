@@ -124,6 +124,10 @@ class CustomTool(DefaultOrganizationMixin, BaseModel):
         db_comment="Flag to enable or disable single pass extraction mode",
         default=False,
     )
+    use_vision_table_extraction = models.BooleanField(
+        db_comment="When True, table extraction uses OpenAI vision on the raw document (no x2text).",
+        default=False,
+    )
     challenge_llm = models.ForeignKey(
         AdapterInstance,
         on_delete=models.PROTECT,

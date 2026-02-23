@@ -17,6 +17,9 @@ from unstract.prompt_service.services.answer_prompt import AnswerPromptService
 from unstract.prompt_service.services.rentrolls_extractor.interface import (
     RentRollExtractor,
 )
+from unstract.prompt_service.services.vision_table_extraction import (
+    VisionTableExtractionService,
+)
 from unstract.prompt_service.services.retrieval import RetrievalService
 from unstract.prompt_service.services.variable_replacement import (
     VariableReplacementService,
@@ -188,8 +191,61 @@ def prompt_processor() -> Any:
             status_code = getattr(e, "status_code", None) or 500
             raise APIError(message=msg, code=status_code) from e
 
+        # Vision path for both TABLE and RECORD when use_vision_table_extraction is set
+        if output[PSKeys.TYPE] in (PSKeys.TABLE, PSKeys.RECORD) and tool_settings.get(
+            PSKeys.USE_VISION_TABLE_EXTRACTION
+        ):
+            try:
+                fs_instance = FileUtils.get_fs_instance(
+                    execution_source=execution_source
+                )
+                result = VisionTableExtractionService.run(
+                    file_path=file_path,
+                    fs_instance=fs_instance,
+                    llm=llm,
+                    prompt=prompt_text,
+                    tool_settings=tool_settings,
+                    execution_source=execution_source,
+                )
+                structured_output[output[PSKeys.NAME]] = result
+                metadata = UsageHelper.query_usage_metadata(
+                    token=platform_key, metadata=metadata
+                )
+                response = {
+                    PSKeys.METADATA: metadata,
+                    PSKeys.OUTPUT: structured_output,
+                    PSKeys.METRICS: metrics,
+                }
+                return response
+            except APIError:
+                raise
+            except Exception as e:
+                app.logger.exception(
+                    "Vision table extraction failed for prompt %s: %s",
+                    output[PSKeys.NAME],
+                    e,
+                )
+                publish_log(
+                    log_events_id,
+                    {
+                        "tool_id": tool_id,
+                        "prompt_key": prompt_name,
+                        "doc_name": doc_name,
+                    },
+                    LogLevel.ERROR,
+                    RunLevel.TABLE_EXTRACTION,
+                    "Vision table extraction failed",
+                )
+                raise APIError(
+                    message=f"Vision table extraction failed: {e}",
+                    code=500,
+                ) from e
+
+        # Non-vision table path (TABLE only; RECORD uses vision when enabled)
         if output[PSKeys.TYPE] == PSKeys.TABLE:
-            adapter_parent_data = ToolAdapter.get_adapter_config(util, output[PSKeys.LLM])
+            adapter_parent_data = ToolAdapter.get_adapter_config(
+                util, output[PSKeys.LLM]
+            )
             llm_config = adapter_parent_data.get("adapter_metadata")
             adapter_id = adapter_parent_data.get("adapter_id")
             adapter_prefix = adapter_id.split("|")[0]

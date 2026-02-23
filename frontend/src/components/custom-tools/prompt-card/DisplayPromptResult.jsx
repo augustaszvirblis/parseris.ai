@@ -344,6 +344,8 @@ function DisplayPromptResult({
       ? selectedTableIdx
       : 0;
   const activeTable = multiTableData?.[safeTableIdx]?.data ?? null;
+  const noStructuredDataMessage =
+    "No structured data was extracted. If this is a scanned PDF, add an OCR adapter in the tool profile (LLM profile settings) and try again.";
 
   const handleExportExcel = () => {
     if (!multiTableData) return;
@@ -386,9 +388,19 @@ function DisplayPromptResult({
       })
     : [];
 
+  const showNoStructuredDataHint =
+    (useSimplifiedOutputUi || isTable) &&
+    !multiTableData &&
+    output !== undefined &&
+    output !== null;
+
   return (
     <Typography.Paragraph className="prompt-card-display-output font-size-12">
-      {multiTableData ? (
+      {showNoStructuredDataHint ? (
+        <Typography.Text type="secondary" className="prompt-output-empty-table">
+          {noStructuredDataMessage}
+        </Typography.Text>
+      ) : multiTableData ? (
         <div className="prompt-output-json-table-view">
           <Space direction="vertical" size="small" style={{ width: "100%" }}>
             {!useSimplifiedOutputUi && (
@@ -415,26 +427,37 @@ function DisplayPromptResult({
                     }))}
                   />
                 )}
-                <Table
-                  dataSource={tableDataSource}
-                  columns={tableColumns}
-                  pagination={{
-                    pageSize: 10,
-                    size: "small",
-                    showSizeChanger: true,
-                    showTotal: (total) => `Total ${total} rows`,
-                  }}
-                  size="small"
-                  scroll={{ x: "max-content" }}
-                />
-                <Button
-                  type="primary"
-                  icon={<DownloadOutlined />}
-                  onClick={handleExportExcel}
-                  size="small"
-                >
-                  Export to Excel
-                </Button>
+                {tableDataSource.length > 0 ? (
+                  <>
+                    <Table
+                      dataSource={tableDataSource}
+                      columns={tableColumns}
+                      pagination={{
+                        pageSize: 10,
+                        size: "small",
+                        showSizeChanger: true,
+                        showTotal: (total) => `Total ${total} rows`,
+                      }}
+                      size="small"
+                      scroll={{ x: "max-content" }}
+                    />
+                    <Button
+                      type="primary"
+                      icon={<DownloadOutlined />}
+                      onClick={handleExportExcel}
+                      size="small"
+                    >
+                      Export to Excel
+                    </Button>
+                  </>
+                ) : (
+                  <Typography.Text
+                    type="secondary"
+                    className="prompt-output-empty-table"
+                  >
+                    {noStructuredDataMessage}
+                  </Typography.Text>
+                )}
               </>
             ) : (
               renderJson(

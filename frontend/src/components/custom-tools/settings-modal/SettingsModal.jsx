@@ -7,6 +7,7 @@ import {
   DiffOutlined,
   FileTextOutlined,
   MessageOutlined,
+  PictureOutlined,
 } from "@ant-design/icons";
 
 import SpaceWrapper from "../../widgets/space-wrapper/SpaceWrapper";
@@ -15,6 +16,7 @@ import { ManageLlmProfiles } from "../manage-llm-profiles/ManageLlmProfiles";
 import { CustomSynonyms } from "../custom-synonyms/CustomSynonyms";
 import { PreAndPostAmbleModal } from "../pre-and-post-amble-modal/PreAndPostAmbleModal";
 import { CustomDataSettings } from "../custom-data-settings/CustomDataSettings";
+import { VisionTableExtractionSettings } from "../vision-table-extraction-settings/VisionTableExtractionSettings";
 
 import "./SettingsModal.css";
 
@@ -44,11 +46,13 @@ function SettingsModal({ open, setOpen, handleUpdateTool }) {
       getMenuItem("Grammar", 5, <MessageOutlined />),
       getMenuItem("Preamble", 6, <DiffOutlined />),
       getMenuItem("Postamble", 7, <DiffOutlined />),
+      getMenuItem("Vision Table Extraction", 10, <PictureOutlined />),
     ];
 
     const listOfComponents = {
       1: <ManageLlmProfiles />,
       5: <CustomSynonyms />,
+      10: <VisionTableExtractionSettings handleUpdateTool={handleUpdateTool} />,
       6: (
         <PreAndPostAmbleModal
           type="PREAMBLE"

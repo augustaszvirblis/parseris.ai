@@ -3,6 +3,7 @@ from typing import Any
 
 from unstract.sdk1.adapters.base import Adapter
 from unstract.sdk1.adapters.enums import AdapterTypes
+from unstract.sdk1.file_storage import FileStorage, FileStorageProvider
 
 
 class OCRAdapter(Adapter, ABC):
@@ -35,8 +36,12 @@ class OCRAdapter(Adapter, ABC):
     def get_adapter_type() -> AdapterTypes:
         return AdapterTypes.OCR
 
-    def process(self, input_file_path: str, output_file_path: str | None = None) -> str:
-        # Overriding methods will contain actual implementation
+    def process(
+        self,
+        input_file_path: str,
+        output_file_path: str | None = None,
+        fs: FileStorage | None = None,
+    ) -> str:
         return ""
 
     def test_connection(self, llm_metadata: dict[str, Any]) -> bool:
