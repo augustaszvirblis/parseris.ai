@@ -37,6 +37,7 @@ def create_app() -> Flask:
 
     log_level = getattr(logging, log_level, logging.INFO)
     app = Flask("prompt-service")
+    app.json.sort_keys = False
     app.logger.setLevel(log_level)
     app.logger.info("Initializing Flask application...")
 

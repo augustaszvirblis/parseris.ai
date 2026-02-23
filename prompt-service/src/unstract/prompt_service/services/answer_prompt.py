@@ -186,6 +186,22 @@ class AnswerPromptService:
                 PSKeys.JSON_POSTAMBLE, PSKeys.DEFAULT_JSON_POSTAMBLE
             )
             postamble += f"\n{json_postamble}"
+            postamble += (
+                "\nIf the context contains multiple distinct tables, "
+                "return a JSON object where each key is the table name or title "
+                "and each value is an array of row objects. "
+                "If there is only one table, return it as a single array of row objects."
+                "\nIMPORTANT: Preserve the original order from the document. "
+                "Tables must appear in the same order as in the source document, "
+                "NOT alphabetically. Column keys within each row must also appear "
+                "in the same order as the columns appear in the original document, "
+                "NOT sorted alphabetically."
+                "\nMERGED CELLS: When a cell in the source document spans multiple "
+                "columns (merged/colspan cells), include that cell's value in EVERY "
+                "column it spans. Do not leave spanned columns empty or null. "
+                "Similarly, when a cell spans multiple rows (merged/rowspan cells), "
+                "repeat the value in every row it covers."
+            )
         if platform_postamble:
             platform_postamble += "\n\n"
             if word_confidence_postamble:
@@ -375,6 +391,55 @@ class AnswerPromptService:
         return fs_instance
 
     @staticmethod
+    def _reorder_keys_by_context(
+        data: Any, context_text: str
+    ) -> Any:
+        """Reorder JSON keys to match their order of appearance in the source
+        document context, rather than the alphabetical order LLMs tend to
+        produce.
+
+        Args:
+            data: Parsed JSON data (dict, list, or primitive).
+            context_text: The extracted text from the source document.
+
+        Returns:
+            The same data with dict keys reordered by their position in the
+            context text.
+        """
+        if not context_text:
+            return data
+
+        context_lower = context_text.lower()
+
+        if isinstance(data, dict):
+            if len(data) > 1:
+                key_positions: list[tuple[str, float, int]] = []
+                for idx, key in enumerate(data.keys()):
+                    pos = context_lower.find(str(key).lower())
+                    key_positions.append(
+                        (key, float(pos) if pos != -1 else float("inf"), idx)
+                    )
+                key_positions.sort(key=lambda t: (t[1], t[2]))
+                sorted_keys = [k for k, _, _ in key_positions]
+            else:
+                sorted_keys = list(data.keys())
+
+            reordered: dict[str, Any] = {}
+            for key in sorted_keys:
+                reordered[key] = AnswerPromptService._reorder_keys_by_context(
+                    data[key], context_text
+                )
+            return reordered
+
+        if isinstance(data, list):
+            return [
+                AnswerPromptService._reorder_keys_by_context(item, context_text)
+                for item in data
+            ]
+
+        return data
+
+    @staticmethod
     def handle_json(
         answer: str,
         structured_output: dict[str, Any],
@@ -414,6 +479,56 @@ class AnswerPromptService:
                 )
                 structured_output[prompt_key] = {}
             else:
+                # Reorder keys to match their order in the source document
+                context_text = ""
+                if metadata and PSKeys.CONTEXT in metadata:
+                    prompt_context = metadata[PSKeys.CONTEXT].get(prompt_key)
+                    if isinstance(prompt_context, list):
+                        context_text = "\n".join(
+                            str(c) for c in prompt_context
+                        )
+                    elif isinstance(prompt_context, str):
+                        context_text = prompt_context
+
+                if context_text:
+                    app.logger.info(
+                        f"[reorder] context available for '{prompt_key}', "
+                        f"len={len(context_text)}"
+                    )
+                    # Log keys before reorder
+                    sample_keys = None
+                    if isinstance(parsed_data, dict):
+                        sample_keys = list(parsed_data.keys())[:10]
+                    elif isinstance(parsed_data, list) and parsed_data:
+                        first = parsed_data[0]
+                        if isinstance(first, dict):
+                            sample_keys = list(first.keys())[:10]
+                    app.logger.info(
+                        f"[reorder] keys BEFORE: {sample_keys}"
+                    )
+
+                    parsed_data = AnswerPromptService._reorder_keys_by_context(
+                        parsed_data, context_text
+                    )
+
+                    # Log keys after reorder
+                    sample_keys_after = None
+                    if isinstance(parsed_data, dict):
+                        sample_keys_after = list(parsed_data.keys())[:10]
+                    elif isinstance(parsed_data, list) and parsed_data:
+                        first = parsed_data[0]
+                        if isinstance(first, dict):
+                            sample_keys_after = list(first.keys())[:10]
+                    app.logger.info(
+                        f"[reorder] keys AFTER:  {sample_keys_after}"
+                    )
+                else:
+                    app.logger.warning(
+                        f"[reorder] NO context for '{prompt_key}', "
+                        f"metadata keys={list(metadata.keys()) if metadata else 'None'}, "
+                        f"context keys={list(metadata.get(PSKeys.CONTEXT, {}).keys()) if metadata else 'None'}"
+                    )
+
                 # Get webhook configuration from output settings
                 webhook_enabled = output.get(PSKeys.ENABLE_POSTPROCESSING_WEBHOOK, False)
                 webhook_url = output.get(PSKeys.POSTPROCESSING_WEBHOOK_URL)

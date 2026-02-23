@@ -67,7 +67,7 @@ class Command(BaseCommand):
         adapters_config = [
             {
                 'name': 'OpenAI GPT-4o',
-                'id': 'openai|openai',
+                'id': 'openai|502ecf49-e47c-445c-9907-6d4b90c5cd17',
                 'type': AdapterTypes.LLM.value,
                 'metadata': {
                     'adapter_name': 'OpenAI',
@@ -77,7 +77,7 @@ class Command(BaseCommand):
             },
             {
                 'name': 'OpenAI Embeddings',
-                'id': 'openai|openai_embedding',
+                'id': 'openai|717a0b0e-3bbc-41dc-9f0c-5689437a1151',
                 'type': AdapterTypes.EMBEDDING.value,
                 'metadata': {
                     'adapter_name': 'OpenAI',
@@ -87,13 +87,16 @@ class Command(BaseCommand):
             },
             {
                 'name': 'Pinecone',
-                'id': 'pinecone|pinecone',
+                'id': 'pinecone|83881133-485d-4ecc-b1f7-0009f96dc74a',
                 'type': AdapterTypes.VECTOR_DB.value,
                 'metadata': {
                     'adapter_name': 'Pinecone',
                     'api_key': PINECONE_API_KEY,
                     'environment': PINECONE_ENV,
                     'index_name': PINECONE_INDEX,
+                    'spec': 'serverless',
+                    'cloud': 'aws',
+                    'region': PINECONE_ENV,
                 }
             },
         ]
@@ -102,7 +105,7 @@ class Command(BaseCommand):
         if LLMWHISPERER_URL and LLMWHISPERER_KEY:
             adapters_config.append({
                 'name': 'LLMWhisperer V2',
-                'id': 'llmwhisperer|llmwhisperer_v2',
+                'id': 'llmwhisperer|a5e6b8af-3e1f-4a80-b006-d017e8e67f93',
                 'type': AdapterTypes.X2TEXT.value,
                 'metadata': {
                     'adapter_name': 'LLMWhisperer',
@@ -118,44 +121,62 @@ class Command(BaseCommand):
                 )
             )
         
-        self.stdout.write('\nCreating adapters...')
+        self.stdout.write('\nCreating / updating adapters...')
         created_count = 0
-        
+        updated_count = 0
+
         for config in adapters_config:
-            # Check if adapter already exists
-            existing = AdapterInstance.objects.filter(
-                organization=org,
-                adapter_name=config['name'],
-                adapter_type=config['type']
-            ).first()
-            
-            if existing:
-                self.stdout.write(self.style.WARNING(f'  ⚠ {config["name"]} already exists'))
-                continue
-            
             try:
-                # Encrypt metadata
                 encrypted = f.encrypt(json.dumps(config['metadata']).encode('utf-8'))
-                
-                # Create adapter
-                adapter = AdapterInstance(
-                    adapter_name=config['name'],
-                    adapter_id=config['id'],
-                    adapter_type=config['type'],
-                    adapter_metadata=config['metadata'],
-                    adapter_metadata_b=encrypted,
-                    organization=org,
-                    created_by=user,
-                    modified_by=user,
-                    is_active=True,
-                    shared_to_org=True,
-                )
-                adapter.save()
-                
-                self.stdout.write(self.style.SUCCESS(f'  ✓ Created: {config["name"]}'))
-                created_count += 1
-                
+
+                from django.db import connection
+                with connection.cursor() as cur:
+                    cur.execute(
+                        "SELECT id FROM unstract.adapter_instance "
+                        "WHERE adapter_name = %s AND adapter_type = %s AND organization_id = %s",
+                        [config['name'], config['type'], org.id],
+                    )
+                    row = cur.fetchone()
+
+                if row:
+                    with connection.cursor() as cur:
+                        cur.execute(
+                            "UPDATE unstract.adapter_instance "
+                            "SET adapter_metadata = %s, adapter_metadata_b = %s, "
+                            "    is_friction_less = TRUE, is_usable = TRUE "
+                            "WHERE id = %s",
+                            [json.dumps(config['metadata']), encrypted, row[0]],
+                        )
+                    self.stdout.write(self.style.SUCCESS(
+                        f'  ✓ Updated: {config["name"]}'
+                    ))
+                    updated_count += 1
+                else:
+                    adapter = AdapterInstance(
+                        adapter_name=config['name'],
+                        adapter_id=config['id'],
+                        adapter_type=config['type'],
+                        adapter_metadata=config['metadata'],
+                        adapter_metadata_b=encrypted,
+                        organization=org,
+                        created_by=user,
+                        modified_by=user,
+                        is_active=True,
+                        shared_to_org=True,
+                        is_friction_less=True,
+                        is_usable=True,
+                    )
+                    adapter.save()
+                    self.stdout.write(self.style.SUCCESS(
+                        f'  ✓ Created: {config["name"]}'
+                    ))
+                    created_count += 1
+
             except Exception as e:
-                self.stdout.write(self.style.ERROR(f'  ✗ Failed to create {config["name"]}: {e}'))
-        
-        self.stdout.write(self.style.SUCCESS(f'\n✓ Created {created_count} adapters successfully!'))
+                self.stdout.write(self.style.ERROR(
+                    f'  ✗ Failed {config["name"]}: {e}'
+                ))
+
+        self.stdout.write(self.style.SUCCESS(
+            f'\n✓ Created {created_count}, updated {updated_count} adapters!'
+        ))

@@ -11,6 +11,10 @@ import {
   normalizeTableDataForExcel,
   promptType,
 } from "../../../helpers/GetStaticData";
+import {
+  getMultiTableData,
+  sanitizeSheetName,
+} from "../../../helpers/tableDataUtils";
 import { useAxiosPrivate } from "../../../hooks/useAxiosPrivate";
 import { useAlertStore } from "../../../store/alert-store";
 import { useCustomToolStore } from "../../../store/custom-tool-store";
@@ -32,42 +36,6 @@ try {
     require("../../../plugins/simple-prompt-studio/SpsPromptsEmptyState").SpsPromptsEmptyState;
 } catch {
   // The component will remain null of it is not available
-}
-
-function isTableLikeData(data) {
-  return (
-    Array.isArray(data) &&
-    data.length > 0 &&
-    data.every(
-      (item) =>
-        item !== null &&
-        item !== undefined &&
-        typeof item === "object" &&
-        !Array.isArray(item)
-    )
-  );
-}
-
-function getTableDataFromOutput(parsedOutput) {
-  let data = parsedOutput;
-  if (typeof data === "string") {
-    try {
-      data = JSON.parse(data);
-    } catch {
-      return null;
-    }
-  }
-  if (isTableLikeData(data)) return data;
-  if (
-    typeof data === "object" &&
-    data !== null &&
-    !Array.isArray(data) &&
-    Object.keys(data).length === 1
-  ) {
-    const val = Object.values(data)[0];
-    if (isTableLikeData(val)) return val;
-  }
-  return null;
 }
 
 function DocumentParser({
@@ -271,38 +239,56 @@ function DocumentParser({
     return outputs;
   };
 
-  // Collect table-like data from all prompt outputs for the selected document (for Export to Excel)
-  const getAggregatedTableData = () => {
+  const getAggregatedTables = () => {
     const docId = selectedDoc?.document_id;
     if (!docId || !promptOutputs) return null;
-    const allRows = [];
+    const tables = [];
     (details?.prompts || []).forEach((prompt) => {
       const outputs = getPromptOutputs(prompt?.prompt_id);
       Object.entries(outputs || {}).forEach(([key, entry]) => {
         const keyParts = key.split("__");
         if (keyParts[1] !== docId) return;
-        const tableData = getTableDataFromOutput(entry?.output);
-        if (tableData?.length) allRows.push(...tableData);
+        const multiTable = getMultiTableData(entry?.output);
+        if (multiTable) {
+          multiTable.forEach((tbl) => {
+            const sheetName =
+              multiTable.length === 1 && tbl.name === "Table 1"
+                ? prompt?.prompt_key || tbl.name
+                : tbl.name;
+            tables.push({ name: sheetName, data: tbl.data });
+          });
+        }
       });
     });
-    return allRows.length ? allRows : null;
+    return tables.length ? tables : null;
   };
 
-  const aggregatedTableData = getAggregatedTableData();
+  const aggregatedTables = getAggregatedTables();
 
   const handleExportExcel = () => {
     const wb = XLSX.utils.book_new();
-    const rawData =
-      aggregatedTableData && aggregatedTableData.length > 0
-        ? aggregatedTableData
-        : [
-            {
-              "No data": "Run prompts and ensure JSON/table output to export.",
-            },
-          ];
-    const data = normalizeTableDataForExcel(rawData);
-    const ws = XLSX.utils.json_to_sheet(data);
-    XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+    if (aggregatedTables && aggregatedTables.length > 0) {
+      const usedNames = new Set();
+      aggregatedTables.forEach((tbl, i) => {
+        const normalized = normalizeTableDataForExcel(tbl.data);
+        const ws = XLSX.utils.json_to_sheet(normalized);
+        let sheetName = sanitizeSheetName(tbl.name, i);
+        let suffix = 2;
+        const baseName = sheetName;
+        while (usedNames.has(sheetName)) {
+          const maxBase = 31 - String(suffix).length - 1;
+          sheetName = `${baseName.slice(0, maxBase)}_${suffix}`;
+          suffix++;
+        }
+        usedNames.add(sheetName);
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      });
+    } else {
+      const ws = XLSX.utils.json_to_sheet([
+        { "No data": "Run prompts and ensure JSON/table output to export." },
+      ]);
+      XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+    }
     const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     const blob = new Blob([wbout], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

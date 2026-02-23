@@ -310,6 +310,25 @@ def prompt_processor() -> Any:
                         execution_source=execution_source,
                         prompt=prompt_text,
                     )
+                    # Reorder keys to match original document order
+                    try:
+                        fs_instance = FileUtils.get_fs_instance(
+                            execution_source=execution_source
+                        )
+                        context_text = fs_instance.read(
+                            path=file_path, mode="r"
+                        )
+                        prompt_key = output[PSKeys.NAME]
+                        if context_text and prompt_key in structured_output:
+                            structured_output[prompt_key] = (
+                                AnswerPromptService._reorder_keys_by_context(
+                                    structured_output[prompt_key], context_text
+                                )
+                            )
+                    except Exception as e:
+                        app.logger.debug(
+                            f"Could not reorder table keys: {e}"
+                        )
                     metadata = UsageHelper.query_usage_metadata(
                         token=platform_key, metadata=metadata
                     )

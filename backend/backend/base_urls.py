@@ -16,6 +16,8 @@ urlpatterns = [
     path(
         f"{settings.PATH_PREFIX}/", include((public_urls, "public"), namespace="public")
     ),
+    # Simple Prompt Studio — public, no auth
+    path(f"{settings.PATH_PREFIX}/sps/", include("simple_prompt_studio.urls")),
     # API deployment
     path(f"{settings.API_DEPLOYMENT_PATH_PREFIX}/", include("api_v2.execution_urls")),
     path(

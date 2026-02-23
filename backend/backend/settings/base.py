@@ -544,6 +544,9 @@ WHITELISTED_PATHS.append(f"/{API_DEPLOYMENT_PATH_PREFIX}")
 # Whitelisting health check API
 WHITELISTED_PATHS.append("/health")
 
+# Whitelisting Simple Prompt Studio (public, no auth)
+WHITELISTED_PATHS.append(f"/{PATH_PREFIX}/sps")
+
 # These path will work without organization in request
 ORGANIZATION_MIDDLEWARE_WHITELISTED_PATHS = []
 

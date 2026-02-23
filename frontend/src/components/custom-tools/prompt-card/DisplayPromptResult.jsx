@@ -1,4 +1,12 @@
-import { Button, Segmented, Space, Spin, Table, Typography } from "antd";
+import {
+  Button,
+  Segmented,
+  Select,
+  Space,
+  Spin,
+  Table,
+  Typography,
+} from "antd";
 import PropTypes from "prop-types";
 import { DownloadOutlined, InfoCircleFilled } from "@ant-design/icons";
 import { saveAs } from "file-saver";
@@ -13,57 +21,13 @@ import {
   normalizeTableDataForExcel,
   PROMPT_RUN_API_STATUSES,
 } from "../../../helpers/GetStaticData";
+import {
+  getMultiTableData,
+  sanitizeSheetName,
+} from "../../../helpers/tableDataUtils";
 import "./PromptCard.css";
 import { useCustomToolStore } from "../../../store/custom-tool-store";
 import { SpinnerLoader } from "../../widgets/spinner-loader/SpinnerLoader";
-
-/**
- * Returns true when data is a non-empty array of plain objects (suitable for table view).
- * @param {unknown} data - Value to check
- * @return {boolean}
- */
-function isTableLikeData(data) {
-  return (
-    Array.isArray(data) &&
-    data.length > 0 &&
-    data.every(
-      (item) =>
-        item !== null &&
-        item !== undefined &&
-        typeof item === "object" &&
-        !Array.isArray(item)
-    )
-  );
-}
-
-/**
- * Returns the array to use for table view and Excel export, or null.
- * Handles: raw array, or object with single key whose value is table-like array,
- * or JSON string that parses to either.
- * @param {unknown} parsedOutput - Value from displayPromptResult (may be string when highlight off)
- * @return {Array<Record<string, unknown>> | null}
- */
-function getTableData(parsedOutput) {
-  let data = parsedOutput;
-  if (typeof data === "string") {
-    try {
-      data = JSON.parse(data);
-    } catch {
-      return null;
-    }
-  }
-  if (isTableLikeData(data)) return data;
-  if (
-    typeof data === "object" &&
-    data !== null &&
-    !Array.isArray(data) &&
-    Object.keys(data).length === 1
-  ) {
-    const val = Object.values(data)[0];
-    if (isTableLikeData(val)) return val;
-  }
-  return null;
-}
 
 function DisplayPromptResult({
   output,
@@ -82,6 +46,7 @@ function DisplayPromptResult({
   const [parsedOutput, setParsedOutput] = useState(null);
   const [selectedKey, setSelectedKey] = useState(null);
   const [jsonTableViewMode, setJsonTableViewMode] = useState("table");
+  const [selectedTableIdx, setSelectedTableIdx] = useState(0);
   const {
     singlePassExtractMode,
     isSinglePassExtractLoading,
@@ -373,14 +338,21 @@ function DisplayPromptResult({
         })()
       : parsedOutput;
 
-  const tableData = getTableData(parsedOutput);
+  const multiTableData = getMultiTableData(parsedOutput);
+  const safeTableIdx =
+    multiTableData && selectedTableIdx < multiTableData.length
+      ? selectedTableIdx
+      : 0;
+  const activeTable = multiTableData?.[safeTableIdx]?.data ?? null;
 
   const handleExportExcel = () => {
-    if (!tableData) return;
-    const normalized = normalizeTableDataForExcel(tableData);
+    if (!multiTableData) return;
     const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(normalized);
-    XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+    multiTableData.forEach((tbl, i) => {
+      const normalized = normalizeTableDataForExcel(tbl.data);
+      const ws = XLSX.utils.json_to_sheet(normalized);
+      XLSX.utils.book_append_sheet(wb, ws, sanitizeSheetName(tbl.name, i));
+    });
     const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     const blob = new Blob([wbout], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -388,15 +360,14 @@ function DisplayPromptResult({
     saveAs(blob, "prompt-export.xlsx");
   };
 
-  // Ensure no object/array is ever passed to React as child (fixes React error #31)
   const toCellText = (value) => {
     if (value === null || value === undefined) return "";
     if (typeof value === "object") return JSON.stringify(value);
     return String(value);
   };
 
-  const tableColumns = tableData
-    ? Object.keys(tableData[0]).map((colKey) => ({
+  const tableColumns = activeTable
+    ? Object.keys(activeTable[0]).map((colKey) => ({
         title: String(colKey),
         dataIndex: colKey,
         key: String(colKey),
@@ -404,9 +375,8 @@ function DisplayPromptResult({
       }))
     : [];
 
-  // Sanitize rows so every cell is string; table never receives objects
-  const tableDataSource = tableData
-    ? tableData.map((row, i) => {
+  const tableDataSource = activeTable
+    ? activeTable.map((row, i) => {
         const sanitized = {};
         for (const k of Object.keys(row)) {
           sanitized[k] = toCellText(row[k]);
@@ -418,7 +388,7 @@ function DisplayPromptResult({
 
   return (
     <Typography.Paragraph className="prompt-card-display-output font-size-12">
-      {tableData ? (
+      {multiTableData ? (
         <div className="prompt-output-json-table-view">
           <Space direction="vertical" size="small" style={{ width: "100%" }}>
             {!useSimplifiedOutputUi && (
@@ -433,6 +403,18 @@ function DisplayPromptResult({
             )}
             {jsonTableViewMode === "table" || useSimplifiedOutputUi ? (
               <>
+                {multiTableData.length > 1 && (
+                  <Select
+                    value={safeTableIdx}
+                    onChange={(val) => setSelectedTableIdx(val)}
+                    size="small"
+                    style={{ minWidth: 180 }}
+                    options={multiTableData.map((tbl, i) => ({
+                      value: i,
+                      label: tbl.name,
+                    }))}
+                  />
+                )}
                 <Table
                   dataSource={tableDataSource}
                   columns={tableColumns}
